@@ -62,7 +62,7 @@ class GlobalAttention(nn.Module):
 
         align = self.score(input, memory_bank)
 
-        mask = utils.sequence_mask(memory_lengths).unqueeze(1)
+        mask = utils.sequence_mask(memory_lengths).unsqueeze(1)
         align.data.masked_fill_(1-mask, -float('inf'))
 
         align_vectors = self.sm(align.view(batch*tgt_len, src_len)).view(batch, tgt_len, src_len)
@@ -70,7 +70,7 @@ class GlobalAttention(nn.Module):
         concat_c = torch.cat([c, input], 2).view(batch * tgt_len, self.dim*2)
         attn_h = self.linear_out(concat_c).view(batch, tgt_len, self.dim)
         if self.attn_type in ['general', 'dot']:
-            attn_h = self.tanh(attn_h)
+            attn_h = attn_h.tanh()
 
         if one_step:
             attn_h = attn_h.squeeze(1)
@@ -78,5 +78,5 @@ class GlobalAttention(nn.Module):
         else:
             attn_h = attn_h.transpose(0, 1).contiguous()
             align_vectors = align_vectors.transpose(0, 1).contiguous()
-            
+
         return attn_h, align_vectors

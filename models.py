@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import data
 import nmt
+import nmt.stacked_rnn as stacked_rnn
+import nmt.attention as attention
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
@@ -78,14 +80,16 @@ class RNNDecoderBase(nn.Module):
     def __init__(self, embeddings, num_layers, bidirectional_encoder, hidden_size, attn_type, dropout):
         super(RNNDecoderBase, self).__init__()
         self.embeddings = embeddings
-        self.rnn = nmt.stacked_rnn.StackedLSTM(num_layers, self._input_size, hidden_size, dropout)
-        self.attn = nmt.attention.GlobalAttention(hidden_size, attn_type=attn_type)
+        self.hidden_size = hidden_size
+        self.rnn = stacked_rnn.StackedLSTM(num_layers, self._input_size, hidden_size, dropout)
+        self.attn = attention.GlobalAttention(hidden_size, attn_type=attn_type)
         self.bidirectional_encoder = bidirectional_encoder
+        self.dropout = nn.Dropout(dropout)
 
 
     @property
     def _input_size(self):
-        return self.embeddings.embedding_size
+        return self.embeddings.weight.shape[1]
 
 
     def forward(self, tgt, memory_bank, state, memory_lengths):
@@ -94,7 +98,7 @@ class RNNDecoderBase(nn.Module):
         state.update_state(decoder_final, final_output.unsqueeze(0), None)
         if not isinstance(decoder_outputs, torch.Tensor):
             decoder_outputs = torch.stack(decoder_outputs)
-        for key in attns.values():
+        for key in attns:
             if not isinstance(attns[key], torch.Tensor):
                 attns[key] = torch.stack(attns[key])
         return decoder_outputs, state, attns
@@ -116,7 +120,7 @@ class RNNDecoderBase(nn.Module):
 class InputFeedRNNDecoder(RNNDecoderBase):
     @property
     def _input_size(self):
-        return self.embeddings.embedding_size + self.hidden_size
+        return self.embeddings.weight.shape[1] + self.hidden_size
 
 
     def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths):
@@ -142,6 +146,9 @@ class NMTModel(nn.Module):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        vocab_size = self.decoder.embeddings.weight.shape[0]
+        self.generator = nn.Sequential(nn.Linear(self.decoder.hidden_size, vocab_size), nn.LogSoftmax(dim=-1))
+        self.generator[0].weight = self.decoder.embeddings.weight
 
 
     def forward(self, src, tgt, lengths, dec_state=None):
@@ -149,8 +156,10 @@ class NMTModel(nn.Module):
         enc_final, memory_bank = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank, enc_state if dec_state is None else dec_state, memory_lengths=lengths)
+        slen, batch_size, embedding_dim = decoder_outputs.shape
+        decoder_outputs = self.generator(decoder_outputs.view(-1, embedding_dim)).view(slen, batch_size, -1)
         return decoder_outputs, attns, dec_state
-        
+
 
 if __name__ == '__main__':
     encoder = RNNEncoder(2, 10000, 512, 512, True, 0.3, True)

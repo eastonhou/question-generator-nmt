@@ -1,13 +1,8 @@
 import argparse
 
-
-def environment_opts(parser):
-    group = parser.add_argument_group('environment')
-    group.add_argument('-use_gpu', type=bool, default=False)
-
-
 def model_opts(parser):
     group = parser.add_argument_group('model')
+    group.add_argument('-num_layers', type=int, default=2)
     group.add_argument('-word_vec_size', type=int, default=512)
     group.add_argument('-rnn_size', type=int, default=512)
     group.add_argument('-bidirectional_encoder', type=bool, default=True)
