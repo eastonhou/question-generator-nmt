@@ -108,10 +108,9 @@ class TrainFeeder(Feeder):
         for example in batch:
             passage, question = example
             passage, question = passage, question[0]
-            target = SOS + question + EOS
             pids = self.sent_to_ids(passage)
             qids = self.sent_to_ids(question)
-            tids = self.sent_to_ids(target)
+            tids = [SOS_ID] + qids + [EOS_ID]
             batch_pid.append(pids)
             batch_qid.append(qids)
             batch_target.append(tids)

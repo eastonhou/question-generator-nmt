@@ -17,24 +17,6 @@ def make_options():
     return parser.parse_args()
 
 
-def make_loss_compute(vocab_size):
-    weight = torch.ones(vocab_size)
-    weight[data.NULL_ID] = 0
-    criterion = torch.nn.NLLLoss(weight, size_average=False)
-    return criterion
-
-
-def build_model(opt, vocab_size):
-    encoder = models.RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
-    decoder = models.InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
-    model = models.NMTModel(encoder, decoder)
-    if torch.cuda.is_available():
-        model = model.cuda()
-    criterion = make_loss_compute(vocab_size)
-    optimizer = torch.optim.Adam(model.parameters(), lr=opt.learning_rate)
-    return model, criterion, optimizer
-
-
 def print_prediction(feeder, similarity, pids, qids, labels, number=None):
     if number is None:
         number = len(pids)
@@ -65,21 +47,23 @@ def run_epoch(opt, model, feeder, criterion, optimizer, batches):
         print('------ITERATION {}, {}/{}, loss: {:>.4F}'.format(
             feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
         if nbatch % 10 == 0:
-            logit = model(x, None)
+            logit = outputs.transpose(0, 1)
             gids = logit.argmax(-1).tolist()
             for k in range(len(gids)):
                 question = feeder.ids_to_sent(gids[k])
-                print('truth:   {}'.format(feeder.ids_to_sent(qids[k][0])))
+                print('truth:   {}'.format(feeder.ids_to_sent(qids[k])))
                 print('predict: {}'.format(question))
                 print('----------')
     return loss
 
 
-def train(auto_stop, steps=50, threshold=0.2):
+def train(auto_stop):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
-    model, criterion, optimizer = build_model(opt, dataset.vocab_size)
+    model = models.build_model(opt, dataset.vocab_size)
+    criterion = models.make_loss_compute(dataset.vocab_size)
+    optimizer = torch.optim.Adam(model.parameters(), lr=opt.learning_rate)
     feeder.prepare('train')
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path)

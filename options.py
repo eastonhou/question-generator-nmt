@@ -16,5 +16,8 @@ def train_opts(parser):
     group.add_argument('-dropout', type=float, default=0.3)
 
 
+def evaluate_opts(parser):
+    group = parser.add_argument_group('evaluate')
+    group.add_argument('-beam_size', type=int, default=5)
 
 

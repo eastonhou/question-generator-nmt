@@ -161,5 +161,24 @@ class NMTModel(nn.Module):
         return decoder_outputs, attns, dec_state
 
 
+
+def make_loss_compute(vocab_size):
+    weight = torch.ones(vocab_size)
+    weight[data.NULL_ID] = 0
+    criterion = torch.nn.NLLLoss(weight, size_average=False)
+    if torch.cuda.is_available():
+        criterion = criterion.cuda()
+    return criterion
+
+
+def build_model(opt, vocab_size):
+    encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
+    decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
+    model = NMTModel(encoder, decoder)
+    if torch.cuda.is_available():
+        model = model.cuda()
+    return model
+
+
 if __name__ == '__main__':
     encoder = RNNEncoder(2, 10000, 512, 512, True, 0.3, True)

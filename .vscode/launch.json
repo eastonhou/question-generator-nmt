@@ -17,6 +17,12 @@
             "program": "${workspaceFolder}/train.py"
         },
         {
+            "name": "Python: evaluate",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/evaluate.py"
+        },
+        {
             "name": "Python: Attach",
             "type": "python",
             "request": "attach",
