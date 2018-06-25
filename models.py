@@ -24,7 +24,7 @@ class DecoderState(object):
             sent_states.data.copy_(sent_states.data.index_select(1, positions))
 
 
-class RnnDecoderState(DecoderState):
+class RNNDecoderState(DecoderState):
     def __init__(self, hidden_size, rnnstate):
         self.hidden = rnnstate if isinstance(rnnstate, tuple) else (rnnstate,)
         batch_size = self.hidden[0].shape[1]
@@ -55,17 +55,17 @@ class EncoderBase(nn.Module):
         raise NotImplementedError
 
 
-class RnnEncoder(EncoderBase):
-    def __init__(self, num_layers, vocab_size, embedding_dim, hidden_size, bidirectional, dropout, use_bridge):
-        super(RnnEncoder, self).__init__()
+class RNNEncoder(EncoderBase):
+    def __init__(self, num_layers, vocab_size, embedding_dim, hidden_size, bidirectional, dropout, use_bridge=False):
+        super(RNNEncoder, self).__init__()
         self.embedding_dim = embedding_dim
-        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=data.NULL_ID)
+        self.embeddings = nn.Embedding(vocab_size, embedding_dim, padding_idx=data.NULL_ID)
         hidden_size = hidden_size//2 if bidirectional else hidden_size
         self.rnn = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
 
 
     def forward(self, src, lengths, encoder_state=None):
-        emb = self.embedding(src)
+        emb = self.embeddings(src)
         if lengths is None:
             lengths = (src != data.NULL_ID).sum(-1)
         packed_emb = pack(emb, lengths)
@@ -74,9 +74,10 @@ class RnnEncoder(EncoderBase):
         return encoder_final, memory_bank
 
 
-class RnnDecoderBase(nn.Module):
-    def __init__(self, num_layers, bidirectional_encoder, hidden_size, attn_type, dropout):
-        super(RnnDecoderBase, self).__init__()
+class RNNDecoderBase(nn.Module):
+    def __init__(self, embeddings, num_layers, bidirectional_encoder, hidden_size, attn_type, dropout):
+        super(RNNDecoderBase, self).__init__()
+        self.embeddings = embeddings
         self.rnn = nmt.stacked_rnn.StackedLSTM(num_layers, self._input_size, hidden_size, dropout)
         self.attn = nmt.attention.GlobalAttention(hidden_size, attn_type=attn_type)
         self.bidirectional_encoder = bidirectional_encoder
@@ -107,12 +108,12 @@ class RnnDecoderBase(nn.Module):
                 h = torch.cat([h[0:h.size(0):2], h[1:h.size(0):2]], 2)
             return h
         if isinstance(encoder_final, tuple): #LSTM
-            return RnnDecoderState(self.hidden_size, tuple([_fix_enc_hidden(enc_hid) for enc_hid in encoder_final]))
+            return RNNDecoderState(self.hidden_size, tuple([_fix_enc_hidden(enc_hid) for enc_hid in encoder_final]))
         else: #GRU
-            return RnnDecoderState(self.hidden_size, _fix_enc_hidden(encoder_final))
+            return RNNDecoderState(self.hidden_size, _fix_enc_hidden(encoder_final))
 
 
-class InputFeedRNNDecoder(RnnDecoderBase):
+class InputFeedRNNDecoder(RNNDecoderBase):
     @property
     def _input_size(self):
         return self.embeddings.embedding_size + self.hidden_size
@@ -122,7 +123,7 @@ class InputFeedRNNDecoder(RnnDecoderBase):
         input_feed = state.input_feed.squeeze(0)
         decoder_outputs = []
         attns = {'std': []}
-        emb = self.embedding(tgt)#[time, batch, dim]
+        emb = self.embeddings(tgt)#[time, batch, dim]
         hidden = state.hidden
         for emb_t in emb.split(1):
             emb_t = emb_t.squeeze(0)#[batch, dim]
@@ -136,5 +137,20 @@ class InputFeedRNNDecoder(RnnDecoderBase):
         return hidden, decoder_outputs, attns
 
 
+class NMTModel(nn.Module):
+    def __init__(self, encoder, decoder):
+        super(NMTModel, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+
+    def forward(self, src, tgt, lengths, dec_state=None):
+        tgt = tgt[:-1]
+        enc_final, memory_bank = self.encoder(src, lengths)
+        enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
+        decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank, enc_state if dec_state is None else dec_state, memory_lengths=lengths)
+        return decoder_outputs, attns, dec_state
+        
+
 if __name__ == '__main__':
-    encoder = RnnEncoder(2, 10000, 512, 512, True, 0.3, True)
+    encoder = RNNEncoder(2, 10000, 512, 512, True, 0.3, True)
