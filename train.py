@@ -36,7 +36,7 @@ def run_epoch(opt, model, feeder, criterion, optimizer, batches):
         batch_size = len(pids)
         nbatch += 1
         x = nu.tensor(pids)
-        y = nu.tensor(qids)
+        #y = nu.tensor(qids)
         t = nu.tensor(tids)
         lengths = (x != data.NULL_ID).sum(-1)
         outputs, _, _ = model(x.transpose(0, 1), t.transpose(0, 1), lengths)
@@ -57,7 +57,7 @@ def run_epoch(opt, model, feeder, criterion, optimizer, batches):
     return loss
 
 
-def train(auto_stop):
+def train(auto_stop, steps=100):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
@@ -71,7 +71,6 @@ def train(auto_stop):
         optimizer.load_state_dict(ckpt['optimizer'])
         feeder.load_state(ckpt['feeder'])
     while True:
-        #run_generator_epoch(generator, discriminator, generator_feeder, criterion, generator_optimizer, 0.2, 100)
         run_epoch(opt, model, feeder, criterion, optimizer, steps)
         utils.mkdir(config.checkpoint_folder)
         torch.save({

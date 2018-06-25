@@ -3,6 +3,7 @@ import torch
 import codecs
 import os
 import math
+import data
 from itertools import count
 
 
@@ -31,150 +32,33 @@ class Translator(object):
        logger(logging.Logger): logger.
     """
 
-    def __init__(self,
-                 model,
-                 fields,
-                 beam_size,
-                 n_best=1,
-                 max_length=100,
-                 global_scorer=None,
-                 copy_attn=False,
-                 logger=None,
-                 gpu=False,
-                 dump_beam="",
-                 min_length=0,
-                 stepwise_penalty=False,
-                 block_ngram_repeat=0,
-                 ignore_when_blocking=[],
-                 sample_rate='16000',
-                 window_size=.02,
-                 window_stride=.01,
-                 window='hamming',
-                 use_filter_pred=False,
-                 data_type="text",
-                 replace_unk=False,
-                 report_score=True,
-                 report_bleu=False,
-                 report_rouge=False,
-                 verbose=False,
-                 out_file=None):
-        self.logger = logger
-        self.gpu = gpu
-        self.cuda = gpu > -1
-
+    def __init__(self, model, beam_size, max_length=20):
         self.model = model
-        self.fields = fields
-        self.n_best = n_best
-        self.max_length = max_length
-        self.global_scorer = global_scorer
-        self.copy_attn = copy_attn
         self.beam_size = beam_size
-        self.min_length = min_length
-        self.stepwise_penalty = stepwise_penalty
-        self.dump_beam = dump_beam
-        self.block_ngram_repeat = block_ngram_repeat
-        self.ignore_when_blocking = set(ignore_when_blocking)
-        self.sample_rate = sample_rate
-        self.window_size = window_size
-        self.window_stride = window_stride
-        self.window = window
-        self.use_filter_pred = use_filter_pred
-        self.replace_unk = replace_unk
-        self.data_type = data_type
-        self.verbose = verbose
-        self.out_file = out_file
-        self.report_score = report_score
-        self.report_bleu = report_bleu
-        self.report_rouge = report_rouge
-
-        # for debugging
-        self.beam_trace = self.dump_beam != ""
-        self.beam_accum = None
-        if self.beam_trace:
-            self.beam_accum = {
-                "predicted_ids": [],
-                "beam_parent_ids": [],
-                "scores": [],
-                "log_probs": []}
-
-    def translate(self, src_dir, src_path, tgt_path,
-                  batch_size, attn_debug=False):
-        data = onmt.io.build_dataset(self.fields,
-                                     self.data_type,
-                                     src_path,
-                                     tgt_path,
-                                     src_dir=src_dir,
-                                     sample_rate=self.sample_rate,
-                                     window_size=self.window_size,
-                                     window_stride=self.window_stride,
-                                     window=self.window,
-                                     use_filter_pred=self.use_filter_pred)
-
-        data_iter = onmt.io.OrderedIterator(
-            dataset=data, device=self.gpu,
-            batch_size=batch_size, train=False, sort=False,
-            sort_within_batch=True, shuffle=False)
-
-        builder = onmt.translate.TranslationBuilder(
-            data, self.fields,
-            self.n_best, self.replace_unk, tgt_path)
-
-        # Statistics
-        counter = count(1)
-        pred_score_total, pred_words_total = 0, 0
-        gold_score_total, gold_words_total = 0, 0
-
-        all_scores = []
-        for batch in data_iter:
-            batch_data = self.translate_batch(batch, data)
-            translations = builder.from_batch(batch_data)
-
-            for trans in translations:
-                all_scores += [trans.pred_scores[0]]
-                pred_score_total += trans.pred_scores[0]
-                pred_words_total += len(trans.pred_sents[0])
-                if tgt_path is not None:
-                    gold_score_total += trans.gold_score
-                    gold_words_total += len(trans.gold_sent) + 1
-
-                n_best_preds = [" ".join(pred)
-                                for pred in trans.pred_sents[:self.n_best]]
-                self.out_file.write('\n'.join(n_best_preds) + '\n')
-                self.out_file.flush()
-
-                if self.verbose:
-                    sent_number = next(counter)
-                    output = trans.log(sent_number)
-                    if self.logger:
-                        self.logger.info(output)
-                    else:
-                        os.write(1, output.encode('utf-8'))
-
-                # Debug attention.
-                if attn_debug:
-                    srcs = trans.src_raw
-                    preds = trans.pred_sents[0]
-                    preds.append('</s>')
-                    attns = trans.attns[0].tolist()
-                    header_format = "{:>10.10} " + "{:>10.7} " * len(srcs)
-                    row_format = "{:>10.10} " + "{:>10.7f} " * len(srcs)
-                    output = header_format.format("", *trans.src_raw) + '\n'
-                    for word, row in zip(preds, attns):
-                        max_index = row.index(max(row))
-                        row_format = row_format.replace(
-                            "{:>10.7f} ", "{:*>10.7f} ", max_index + 1)
-                        row_format = row_format.replace(
-                            "{:*>10.7f} ", "{:>10.7f} ", max_index)
-                        output += row_format.format(word, *row) + '\n'
-                        row_format = "{:>10.10} " + "{:>10.7f} " * len(srcs)
-                    os.write(1, output.encode('utf-8'))
+        self.max_length = max_length
 
 
-        if self.dump_beam:
-            import json
-            json.dump(self.translator.beam_accum,
-                      codecs.open(self.dump_beam, 'w', 'utf-8'))
-        return all_scores
+    def translate(self, src, src_lengths):
+        batch_size = src_lengths.shape[0]
+        enc_final, memory_bank = self.model.encoder(src, src_lengths)
+        dec_states = self.model.decoder.init_decoder_state(src, memory_bank, enc_final)
+        memory_bank = memory_bank.repeat(1, self.beam_size, 1)
+        memory_lengths = src_lengths.repeat(self.beam_size)
+        dec_states.repeat_beam_size_times(self.beam_size)
+        beam = [Beam(self.beam_size) for _ in range(batch_size)]
+        for _ in range(self.max_length):
+            if all([b.done() for b in beam]):
+                break
+            inp = torch.stack([b.current_id for b in beam]).view(1, batch_size*self.beam_size)#1 timestep
+            dec_out, dec_states, _ = self.model.decoder(inp, memory_bank, dec_states, memory_lengths=memory_lengths)
+            dec_out = dec_out.squeeze(0)#[beam_size*batch_size, rnn_size]
+            out = self.model.generator(dec_out)#[beam_size*batch_size, vocab_size]
+            out = out.view(self.beam_size, batch_size, -1)#[beam_size, batch_size, vocab_size]
+            for k in len(beam):#logit~[beam_size, vocab_size]
+                beam[k].advance(out[:,k,:])
+                dec_states.beam_update(k, beam[k].prev_ks, self.beam_size)
+        return [b.sequence() for b in beam]
+
 
     def translate_batch(self, batch, data):
         """
