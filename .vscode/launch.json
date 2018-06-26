@@ -29,6 +29,12 @@
             "program": "${workspaceFolder}/evaluate.py"
         },
         {
+            "name": "Python: serve",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py"
+        },
+        {
             "name": "Python: Attach",
             "type": "python",
             "request": "attach",
