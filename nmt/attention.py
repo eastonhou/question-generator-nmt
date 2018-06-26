@@ -31,7 +31,7 @@ class GlobalAttention(nn.Module):
            raw attention scores (unnormalized) for each src index
           `[batch x tgt_len x src_len]`
         """
-        src_batch, src_len, src_dim = hs.shape
+        src_batch, src_len, _ = hs.shape
         tgt_batch, tgt_len, tgt_dim = ht.shape
         if self.attn_type in ['general', 'dot']:
             if self.attn_type == 'general':
