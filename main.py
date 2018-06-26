@@ -3,13 +3,14 @@ import models
 import data
 import config
 import os
+import json
 import torch
 import argparse
 import nmt.utils as nu
 from translator import Translator
 from flask import Flask, jsonify
 from urllib.parse import unquote
-
+app = Flask(__name__)
 
 def make_options():
     parser = argparse.ArgumentParser(description='train.py')
