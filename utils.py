@@ -1,5 +1,6 @@
 import torch
 import os
+import ujson
 
 def mkdir(directory):
     if not os.path.exists(directory):

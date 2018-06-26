@@ -2,6 +2,7 @@ import config
 import utils
 import random
 import numpy as np
+import re
 
 NULL = '<NULL>'
 OOV = '<OOV>'
@@ -178,3 +179,44 @@ def align3d(values, fill=0):
             line += [fill] * (maxlen0 - len(line))
         row += [([fill] * maxlen0)] * (maxlen1 - len(row))
     return values
+
+
+def replace_span(pattern, index, repl, string):
+    m = re.search(pattern, string)
+    if m is None:
+        return string
+    s = m.span(index)
+    return string[:s[0]] + repl + string[s[1]:]
+
+
+class PolicyDoc(object):
+    def __init__(self, url, title, content):
+        self.url = url
+        self.title = title
+        self.content = self.process_chars(content)
+
+
+    def process_chars(self, content):
+        r = content
+        r = r.replace(',', '，')
+        r = re.sub('[\xa0|\ue003|\ue004|\u3000]+', '\n', r)
+        r = replace_span(r'(\s+)第.+[章|条]', 1, '\n', r)
+        r = re.sub('总[ ]+则', '总则', r)
+        return r
+
+
+
+def parse_paragraphs(doc):
+    lines = doc.content.split('\n')
+    lines = [line.strip() for line in lines]
+    lines = [line for line in lines if line]
+    doc.paragraphs = lines
+
+
+def load_policy_documents():
+    samples = utils.load_json('./data/latest_policy.json')
+    docs = []
+    for sample in samples:
+        doc = PolicyDoc(sample['url'], sample['title'], sample['content'])
+        docs.append(doc)
+    return docs
