@@ -5,6 +5,8 @@ import options
 import data
 import argparse
 import utils
+import os
+import torch
 import nmt.utils as nu
 from translator import Translator
 
@@ -28,12 +30,18 @@ def evaluate():
         model.load_state_dict(ckpt['model'])
     feeder.prepare('dev')
     questions = []
+    gtruths = []
     while not feeder.eof():
-        pids, _, _ = feeder.next(opt.batch_size)
+        pids, qids, _ = feeder.next(opt.batch_size)
         src = nu.tensor(pids)
         lengths = (src != data.NULL_ID).sum(-1)
         tgt = translator.translate(src.transpose(0, 1), lengths)
         questions += [feeder.ids_to_sent(t) for t in tgt]
+        gtruths += [feeder.ids_to_sent(t) for t in qids]
     utils.write_all_lines(opt.output_file, questions)
+    utils.write_all_lines(opt.reference_file, gtruths)
 
+
+if __name__ == '__main__':
+    evaluate()
 

@@ -21,6 +21,10 @@ class Beam(object):
         scores -> Tensor(beam_size, vocab_size)
         '''
         vocab_size = scores.shape[1]
+        for k in range(self.beam_size):
+            if self.cid[k] == data.EOS_ID:
+                scores[k].fill_(-1)
+                scores[k][data.EOS_ID] = 0
         flat_scores = (scores + self.scores.unsqueeze(1).expand_as(scores)).view(-1)
         self.scores, ids = flat_scores.topk(self.beam_size)
         self.sid = ids / vocab_size
@@ -30,12 +34,16 @@ class Beam(object):
             seq.append(id)
 
 
+    def done(self):
+        finished = (self.cid.eq(data.EOS_ID)).sum().tolist()
+        return finished == self.beam_size
+
     def current_id(self):
         return self.cid
 
 
     def state_id(self):
-        return self.state_id
+        return self.sid
 
 
     def sequence(self):
@@ -61,12 +69,12 @@ class Translator(object):
         for _ in range(self.max_length):
             if all([b.done() for b in beam]):
                 break
-            inp = torch.stack([b.current_id() for b in beam]).t().view(1, batch_size*self.beam_size)#1 timestep
+            inp = torch.stack([b.current_id() for b in beam]).t().contiguous().view(1, batch_size*self.beam_size)#1 timestep
             dec_out, dec_states, _ = self.model.decoder(inp, memory_bank, dec_states, memory_lengths=memory_lengths)
             dec_out = dec_out.squeeze(0)#[beam_size*batch_size, rnn_size]
             out = self.model.generator(dec_out)#[beam_size*batch_size, vocab_size]
             out = out.view(self.beam_size, batch_size, -1)#[beam_size, batch_size, vocab_size]
-            for k in len(beam):#logit~[beam_size, vocab_size]
+            for k in range(len(beam)):#logit~[beam_size, vocab_size]
                 beam[k].advance(out[:,k,:])
                 dec_states.beam_update(k, beam[k].state_id(), self.beam_size)
         return [b.sequence() for b in beam]
