@@ -42,8 +42,13 @@ class Feeder(object):
 
 
     def ids_to_sent(self, ids):
-        return ''.join([self.dataset.i2c[id] for id in ids if id != NULL_ID])
-
+        r = ''
+        for id in ids:
+            if id in [NULL_ID, EOS_ID]:
+                break
+            r += self.dataset.i2c[id]
+        return r
+        
 
     def decode_logit(self, logit):
         ids = np.argmax(logit, -1)

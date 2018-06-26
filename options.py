@@ -19,5 +19,8 @@ def train_opts(parser):
 def evaluate_opts(parser):
     group = parser.add_argument_group('evaluate')
     group.add_argument('-beam_size', type=int, default=5)
+    group.add_argument('-max_length', type=int, default=20)
+    group.add_argument('-batch_size', type=int, default=16)
+    group.add_argument('-output_file', type=str, default='./output/questions.txt')
 
 
