@@ -12,13 +12,10 @@ def create_vocab(filename):
     char_vocab = defaultdict(lambda: 0)
     for line in utils.read_all_lines(filename):
         for word in line.split(' '):
-            word_vocab[word] += 1
             for char in word:
                 char_vocab[char] += 1
-    word_vocab = sorted(word_vocab.items(), key=lambda x:-x[1])
     char_vocab = sorted(char_vocab.items(), key=lambda x:-x[1])
-    utils.write_all_lines(config.word_vocab_file, ['{}:{}'.format(w,n) for w,n in word_vocab])
-    utils.write_all_lines(config.char_vocab_file, ['{}:{}'.format(w,n) for w,n in char_vocab])
+    utils.write_all_lines(config.vocab_file, ['{}:{}'.format(w,n) for w,n in char_vocab])
 
 
 def prepare_dataset_with_document(source, target):

@@ -3,4 +3,4 @@ data
 generate
 log
 checkpoint
-output
+output*

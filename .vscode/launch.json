@@ -11,6 +11,12 @@
             "program": "${file}"
         },
         {
+            "name": "Python: preprocess",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/preprocess.py"
+        },
+        {
             "name": "Python: train",
             "type": "python",
             "request": "launch",
