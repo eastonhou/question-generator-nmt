@@ -29,17 +29,22 @@ def evaluate():
         ckpt = torch.load(ckpt_path)
         model.load_state_dict(ckpt['model'])
     feeder.prepare('dev')
-    questions = []
-    gtruths = []
+    lines = []
     while not feeder.eof():
         pids, qids, _ = feeder.next(opt.batch_size)
         src = nu.tensor(pids)
         lengths = (src != data.NULL_ID).sum(-1)
-        tgt = translator.translate(src.transpose(0, 1), lengths)
-        questions += [feeder.ids_to_sent(t) for t in tgt]
-        gtruths += [feeder.ids_to_sent(t) for t in qids]
-    utils.write_all_lines(opt.output_file, questions)
-    utils.write_all_lines(opt.reference_file, gtruths)
+        tgt = translator.translate(src.transpose(0, 1), lengths, opt.best_k_questions)
+        passages = [feeder.ids_to_sent(t) for t in pids]
+        questions = [[feeder.ids_to_sent(t) for t in qs] for qs in tgt]
+        gtruths = [feeder.ids_to_sent(t) for t in qids]
+        for p, qs, g in zip(passages, questions, gtruths):
+            lines.append('--------------------------------')
+            lines.append(p)
+            lines.append('reference: ' + g)
+            for k, q in enumerate(qs):
+                lines.append('predict {}: {}'.format(k, q))
+    utils.write_all_lines(opt.output_file, lines)
 
 
 if __name__ == '__main__':

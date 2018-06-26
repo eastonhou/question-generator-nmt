@@ -46,8 +46,11 @@ class Beam(object):
         return self.sid
 
 
-    def sequence(self):
-        return self.seq[0]
+    def sequence(self, topk=None):
+        if topk is None:
+            return self.seq[0]
+        else:
+            return self.seq[:topk]
 
 
 class Translator(object):
@@ -58,7 +61,7 @@ class Translator(object):
         self.max_length = max_length
 
 
-    def translate(self, src, src_lengths):
+    def translate(self, src, src_lengths, best_k):
         batch_size = src_lengths.shape[0]
         enc_final, memory_bank = self.model.encoder(src, src_lengths)
         dec_states = self.model.decoder.init_decoder_state(src, memory_bank, enc_final)
@@ -77,5 +80,5 @@ class Translator(object):
             for k in range(len(beam)):#logit~[beam_size, vocab_size]
                 beam[k].advance(out[:,k,:])
                 dec_states.beam_update(k, beam[k].state_id(), self.beam_size)
-        return [b.sequence() for b in beam]
+        return [b.sequence(best_k) for b in beam]
 

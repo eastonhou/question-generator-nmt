@@ -5,6 +5,7 @@ import data
 import nmt
 import nmt.stacked_rnn as stacked_rnn
 import nmt.attention as attention
+import nmt.modules as modules
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
@@ -58,10 +59,15 @@ class EncoderBase(nn.Module):
 
 
 class RNNEncoder(EncoderBase):
-    def __init__(self, num_layers, vocab_size, embedding_dim, hidden_size, bidirectional, dropout, use_bridge=False):
+    def __init__(self, num_layers, vocab_size, embedding_dim, hidden_size, bidirectional, dropout, use_bridge=False, position_encoding=False):
         super(RNNEncoder, self).__init__()
         self.embedding_dim = embedding_dim
-        self.embeddings = nn.Embedding(vocab_size, embedding_dim, padding_idx=data.NULL_ID)
+        embeddings = nn.Embedding(vocab_size, embedding_dim, padding_idx=data.NULL_ID)
+        if position_encoding:
+            pe = modules.PositionalEncoding(dropout, embedding_dim)
+            self.embeddings = nn.Sequential(embeddings, pe)
+        else:
+            self.embeddings = nn.Sequential(embeddings)
         hidden_size = hidden_size//2 if bidirectional else hidden_size
         self.rnn = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
 
@@ -89,7 +95,7 @@ class RNNDecoderBase(nn.Module):
 
     @property
     def _input_size(self):
-        return self.embeddings.weight.shape[1]
+        return self.embeddings[0].weight.shape[1]
 
 
     def forward(self, tgt, memory_bank, state, memory_lengths):
@@ -120,7 +126,7 @@ class RNNDecoderBase(nn.Module):
 class InputFeedRNNDecoder(RNNDecoderBase):
     @property
     def _input_size(self):
-        return self.embeddings.weight.shape[1] + self.hidden_size
+        return self.embeddings[0].weight.shape[1] + self.hidden_size
 
 
     def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths):
@@ -146,9 +152,9 @@ class NMTModel(nn.Module):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
-        vocab_size = self.decoder.embeddings.weight.shape[0]
+        vocab_size = self.decoder.embeddings[0].weight.shape[0]
         self.generator = nn.Sequential(nn.Linear(self.decoder.hidden_size, vocab_size), nn.LogSoftmax(dim=-1))
-        self.generator[0].weight = self.decoder.embeddings.weight
+        self.generator[0].weight = self.decoder.embeddings[0].weight
 
 
     def forward(self, src, tgt, lengths, dec_state=None):
@@ -172,7 +178,7 @@ def make_loss_compute(vocab_size):
 
 
 def build_model(opt, vocab_size):
-    encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
+    encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout, position_encoding=opt.position_encoding)
     decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
     model = NMTModel(encoder, decoder)
     if torch.cuda.is_available():
