@@ -3,6 +3,7 @@ import utils
 import random
 import numpy as np
 import re
+import nmt.utils as nu
 
 NULL = '<NULL>'
 OOV = '<OOV>'
@@ -181,6 +182,15 @@ def align3d(values, fill=0):
     return values
 
 
+def next(feeder, batch_size):
+    pids, qids, tids = feeder.next(batch_size)
+    batch_size = len(pids)
+    x = nu.tensor(pids)
+    t = nu.tensor(tids)
+    lengths = (x != NULL_ID).sum(-1)
+    return x.transpose(0, 1), t.transpose(0, 1), lengths, pids, qids
+
+
 def replace_span(pattern, index, repl, string):
     m = re.search(pattern, string)
     if m is None:
@@ -220,3 +230,4 @@ def load_policy_documents():
         doc = PolicyDoc(sample['url'], sample['title'], sample['content'])
         docs.append(doc)
     return docs
+
