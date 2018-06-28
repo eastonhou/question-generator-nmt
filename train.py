@@ -57,7 +57,7 @@ def run_epoch(opt, model, feeder, optimizer, batches):
 def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, step):
     nbatch = 0
     vocab_size = feeder.dataset.vocab_size
-    g_criterion =  models.make_loss_compute(generator.vocab_size)
+    g_criterion =  models.make_loss_compute(feeder.dataset.vocab_size)
     d_criterion = torch.nn.NLLLoss()
     while nbatch < batches:
         x, t, lengths, _, qids = data.next(feeder, opt.batch_size)
