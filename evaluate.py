@@ -85,5 +85,5 @@ def evaluate_policy_docs():
         
 
 if __name__ == '__main__':
-    evaluate_policy_docs()
+    evaluate()
 

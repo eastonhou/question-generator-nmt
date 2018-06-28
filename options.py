@@ -7,7 +7,7 @@ def model_opts(parser):
     group.add_argument('-rnn_size', type=int, default=512)
     group.add_argument('-bidirectional_encoder', type=bool, default=True)
     group.add_argument('-attn_type', type=str, default='general')
-    group.add_argument('-position_encoding', type=bool, default=True)
+    group.add_argument('-position_encoding', type=bool, default=False)
 
 
 def train_opts(parser):
