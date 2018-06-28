@@ -194,6 +194,23 @@ class NMTModel(nn.Module):
         return logit, decoder_outputs, attns, dec_state
 
 
+class Discriminator(nn.Module):
+    def __init__(self, input_size):
+        self.rnn = stacked_rnn.StackedLSTM(1, input_size, input_size, 0.0)
+        self.projection = nn.Sequential(
+            nn.Linear(input_size, 2),
+            nn.Softmax(dim=-1))
+
+
+    def forward(self, hidden):
+        hidden = torch.zero(hidden.shape)
+        for emb_t in hidden.split(1):
+            emb_t = emb_t.squeeze(0)#[batch, dim]
+            _, hidden = self.rnn(emb_t, hidden)
+        logit = self.projection(hidden)
+        return logit
+
+
 def make_loss_compute(vocab_size):
     weight = torch.ones(vocab_size)
     weight[data.NULL_ID] = 0
@@ -207,6 +224,13 @@ def build_model(opt, vocab_size):
     encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout, position_encoding=opt.position_encoding)
     decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
     model = NMTModel(encoder, decoder)
+    if torch.cuda.is_available():
+        model = model.cuda()
+    return model
+
+
+def build_discriminator(opt):
+    model = Discriminator(opt.rnn_size)
     if torch.cuda.is_available():
         model = model.cuda()
     return model

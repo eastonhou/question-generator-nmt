@@ -79,8 +79,8 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('------ITERATION {}, {}/{}, loss: {:>.4F}'.format(
-            feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
+        print('------ITERATION[{}] {}, {}/{}, loss: {:>.4F}'.format(
+            step, feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
         if nbatch % 10 == 0:
             logit = z.transpose(0, 1)
             gids = logit.argmax(-1).tolist()
@@ -97,21 +97,24 @@ def train(auto_stop, steps=100):
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
     generator = models.build_model(opt, dataset.vocab_size)
-    discriminator = models.build_discriminator()
+    discriminator = models.build_discriminator(opt)
     g_optimizer = torch.optim.Adam(generator.parameters(), lr=opt.learning_rate)
     d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=opt.learning_rate)
     feeder.prepare('train')
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path)
-        generator.load_state_dict(ckpt['model'])
+        generator.load_state_dict(ckpt['generator'])
+        discriminator.load_state_dict(ckpt['discriminator'])
         g_optimizer.load_state_dict(ckpt['generator_optimizer'])
         d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
         feeder.load_state(ckpt['feeder'])
     while True:
-        run_epoch(opt, generator, feeder, optimizer, steps)
+        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps, 'generator')
+        run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, steps, 'discriminator')
         utils.mkdir(config.checkpoint_folder)
         torch.save({
-            'model':  generator.state_dict(),
+            'generator':  generator.state_dict(),
+            'discriminator': discriminator.state_dict(),
             'generator_optimizer': g_optimizer.state_dict(),
             'discriminator_optimizer': d_optimizer.state_dict(),
             'feeder': feeder.state()
