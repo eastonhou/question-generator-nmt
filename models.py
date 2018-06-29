@@ -158,8 +158,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         decoder_outputs = []
         attns = {'std': []}
         batch_size = memory_lengths.shape[0]
-        batch_sos = nu.tensor([data.SOS_ID]*batch_size)
-        emb_t = self.embeddings(batch_sos)#[batch, dim]
+        batch_sos = nu.tensor([[data.SOS_ID]*batch_size])
+        emb_t = self.embeddings(batch_sos).squeeze(0)#[batch, dim]
         hidden = state.hidden
         for _ in range(20):
             decoder_input = torch.cat([emb_t, input_feed], 1)
