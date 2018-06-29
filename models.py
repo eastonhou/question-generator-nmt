@@ -7,6 +7,7 @@ import nmt.stacked_rnn as stacked_rnn
 import nmt.attention as attention
 import nmt.modules as modules
 import nmt.utils as nu
+import numpy as np
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
@@ -206,11 +207,12 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         dim = input.shape[-1]
-        hidden = tuple(torch.zeros(dim), torch.zeros(dim))
+        batch_size = input.shape[1]
+        hidden = [[nu.zeros(batch_size, dim)], [nu.zeros(batch_size, dim)]]
         for emb_t in input.split(1):
             emb_t = emb_t.squeeze(0)#[batch, dim]
             _, hidden = self.rnn(emb_t, hidden)
-        logit = self.projection(hidden)
+        logit = self.projection(hidden[0][0])
         return logit
 
 
