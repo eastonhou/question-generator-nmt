@@ -31,6 +31,8 @@ def evaluate():
         model.load_state_dict(ckpt['model'])
     feeder.prepare('dev')
     lines = []
+    correct = 0
+    total = 0
     while not feeder.eof():
         pids, qids, _ = feeder.next(opt.batch_size)
         src = nu.tensor(pids)
@@ -45,6 +47,9 @@ def evaluate():
             lines.append('reference: ' + g)
             for k, q in enumerate(qs):
                 lines.append('predict {}: {}'.format(k, q))
+            correct += len(set(g) & set(q[0]))
+            total += len(set(q[0]))
+    lines.append('correct: {}/{}, accuracy: {}'.format(correct, total, correct/total*100))
     utils.write_all_lines(opt.output_file, lines)
 
 
@@ -85,5 +90,5 @@ def evaluate_policy_docs():
         
 
 if __name__ == '__main__':
-    evaluate_policy_docs()
+    evaluate()
 
