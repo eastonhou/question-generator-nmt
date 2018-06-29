@@ -93,7 +93,7 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
     return loss
 
 
-def train(auto_stop, steps=100):
+def train(auto_stop, steps=20):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
