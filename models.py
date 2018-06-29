@@ -172,7 +172,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             _, ids = generator(decoder_output).max(-1)
             if ids.eq(data.NULL_ID).sum().tolist() == batch_size:
                 break
-            emb_t = self.embeddings(ids)
+            emb_t = self.embeddings(ids.unsqueeze(0)).squeeze(0)
         return hidden, decoder_outputs, attns
 
 
