@@ -15,17 +15,20 @@ class Beam(object):
         self.cid = nu.tensor([data.NULL_ID if i != 0 else data.SOS_ID for i in range(beam_size)])
         self.seq = [list() for _ in range(beam_size)]
         self.scores = nu.tensor([0] * beam_size).float()
+        self.length = 0
 
 
     def advance(self, scores):
         '''
         scores -> Tensor(beam_size, vocab_size)
         '''
+        if self.length <= self.min_length:
+            scores[:, data.EOS_ID] = -1E20
         vocab_size = scores.shape[1]
         for k in range(self.beam_size):
             if self.cid[k] == data.EOS_ID:
                 scores[k].fill_(-1)
-                scores[k][data.EOS_ID] = 0 if k >= self.min_length else -1E20
+                scores[k][data.EOS_ID] = 0
         flat_scores = (scores + self.scores.unsqueeze(1).expand_as(scores)).view(-1)
         self.scores, ids = flat_scores.topk(self.beam_size)
         self.sid = ids / vocab_size
@@ -33,6 +36,8 @@ class Beam(object):
         self.seq = [self.seq[i].copy() for i in self.sid.tolist()]
         for seq, id in zip(self.seq, self.cid.tolist()):
             seq.append(id)
+        self.length += 1
+        
 
 
     def done(self):
