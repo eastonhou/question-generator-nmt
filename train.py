@@ -28,19 +28,16 @@ def print_prediction(feeder, similarity, pids, qids, labels, number=None):
         print(' {} {:>.4F}: {}'.format(lab, sim, question))
 
 
-def run_epoch(opt, model, feeder, criterion, optimizer, batches):
+def run_epoch(opt, model, feeder, optimizer, batches):
     nbatch = 0
     vocab_size = feeder.dataset.vocab_size
+    criterion = models.make_loss_compute(model.vocab_size)
     while nbatch < batches:
-        pids, qids, tids = feeder.next(opt.batch_size)
-        batch_size = len(pids)
+        x, t, lengths, _, qids = data.next(feeder, opt.batch_size)
+        batch_size = lengths.shape[0]
         nbatch += 1
-        x = nu.tensor(pids)
-        #y = nu.tensor(qids)
-        t = nu.tensor(tids)
-        lengths = (x != data.NULL_ID).sum(-1)
-        outputs, _, _ = model(x.transpose(0, 1), t.transpose(0, 1), lengths)
-        loss = criterion(outputs.view(-1, vocab_size), t.transpose(0, 1)[1:].contiguous().view(-1)) / nu.tensor(batch_size).float()
+        outputs, _, _, _ = model(x, t, lengths)
+        loss = criterion(outputs.view(-1, vocab_size), t[1:].contiguous().view(-1)) / nu.tensor(batch_size).float()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -57,25 +54,70 @@ def run_epoch(opt, model, feeder, criterion, optimizer, batches):
     return loss
 
 
+def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, step):
+    nbatch = 0
+    vocab_size = feeder.dataset.vocab_size
+    g_criterion =  models.make_loss_compute(feeder.dataset.vocab_size)
+    d_criterion = torch.nn.NLLLoss()
+    while nbatch < batches:
+        x, t, lengths, _, qids = data.next(feeder, opt.batch_size)
+        batch_size = lengths.shape[0]
+        nbatch += 1
+        y, tc_hidden, _, _ = generator(x, t, lengths)
+        z, fr_hidden, _, _ = generator(x, None, lengths)
+        if step == 'generator':
+            g_loss = g_criterion(y.view(-1, vocab_size), t[1:].contiguous().view(-1)) / nu.tensor(batch_size).float()
+            d_logit = discriminator(fr_hidden)
+            flag = nu.tensor([1]*batch_size)
+            d_loss = d_criterion(d_logit, flag)
+            loss = g_loss + d_loss
+            print('------{} {}, {}/{}, loss: {:>.4F}+{:>.4F}={:>.4F}'.format(step, feeder.iteration, feeder.cursor, feeder.size, g_loss.tolist(), d_loss.tolist(), loss.tolist()))
+        else:
+            tc_logit = discriminator(tc_hidden)
+            fr_logit = discriminator(fr_hidden)
+            logit = torch.cat([tc_logit, fr_logit], dim=0)
+            flag = nu.tensor([1]*batch_size + [0]*batch_size)
+            loss = d_criterion(logit, flag)
+            print('------{} {}, {}/{}, loss: {:>.4F}'.format(step, feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        if nbatch % 10 == 0:
+            logit = z.transpose(0, 1)
+            gids = logit.argmax(-1).tolist()
+            for k in range(len(gids)):
+                question = feeder.ids_to_sent(gids[k])
+                print('truth:   {}'.format(feeder.ids_to_sent(qids[k])))
+                print('predict: {}'.format(question))
+                print('----------')
+    return loss
+
+
 def train(auto_stop, steps=100):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
-    model = models.build_model(opt, dataset.vocab_size)
-    criterion = models.make_loss_compute(dataset.vocab_size)
-    optimizer = torch.optim.Adam(model.parameters(), lr=opt.learning_rate)
+    generator = models.build_model(opt, dataset.vocab_size)
+    discriminator = models.build_discriminator(opt)
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=opt.learning_rate)
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=opt.learning_rate)
     feeder.prepare('train')
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
-        optimizer.load_state_dict(ckpt['optimizer'])
+        generator.load_state_dict(ckpt['generator'])
+        discriminator.load_state_dict(ckpt['discriminator'])
+        g_optimizer.load_state_dict(ckpt['generator_optimizer'])
+        d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
         feeder.load_state(ckpt['feeder'])
     while True:
-        run_epoch(opt, model, feeder, criterion, optimizer, steps)
+        run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, steps, 'discriminator')
+        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps, 'generator')
         utils.mkdir(config.checkpoint_folder)
         torch.save({
-            'model':  model.state_dict(),
-            'optimizer': optimizer.state_dict(),
+            'generator':  generator.state_dict(),
+            'discriminator': discriminator.state_dict(),
+            'generator_optimizer': g_optimizer.state_dict(),
+            'discriminator_optimizer': d_optimizer.state_dict(),
             'feeder': feeder.state()
             }, ckpt_path)
         print('MODEL SAVED.')

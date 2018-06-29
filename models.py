@@ -6,6 +6,8 @@ import nmt
 import nmt.stacked_rnn as stacked_rnn
 import nmt.attention as attention
 import nmt.modules as modules
+import nmt.utils as nu
+import numpy as np
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
@@ -98,8 +100,12 @@ class RNNDecoderBase(nn.Module):
         return self.embeddings[0].weight.shape[1]
 
 
-    def forward(self, tgt, memory_bank, state, memory_lengths):
-        decoder_final, decoder_outputs, attns = self._run_forward_pass(tgt, memory_bank, state, memory_lengths=memory_lengths)
+    def forward(self, tgt_or_generator, memory_bank, state, memory_lengths):
+        if isinstance(tgt_or_generator, nn.Sequential):
+            _forward = self._run_free_pass
+        else:
+            _forward = self._run_forward_pass
+        decoder_final, decoder_outputs, attns = _forward(tgt_or_generator, memory_bank, state, memory_lengths=memory_lengths)
         final_output = decoder_outputs[-1]
         state.update_state(decoder_final, final_output.unsqueeze(0), None)
         if not isinstance(decoder_outputs, torch.Tensor):
@@ -147,6 +153,29 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         return hidden, decoder_outputs, attns
 
 
+    def _run_free_pass(self, generator, memory_bank, state, memory_lengths):
+        input_feed = state.input_feed.squeeze(0)
+        decoder_outputs = []
+        attns = {'std': []}
+        batch_size = memory_lengths.shape[0]
+        batch_sos = nu.tensor([data.SOS_ID]*batch_size)
+        emb_t = self.embeddings(batch_sos)#[batch, dim]
+        hidden = state.hidden
+        for _ in range(20):
+            decoder_input = torch.cat([emb_t, input_feed], 1)
+            rnn_output, hidden = self.rnn(decoder_input, hidden)
+            decoder_output, p_attn = self.attn(rnn_output, memory_bank.transpose(0, 1), memory_lengths=memory_lengths)
+            decoder_output = self.dropout(decoder_output)
+            input_feed = decoder_output
+            decoder_outputs.append(decoder_output)
+            attns['std'].append(p_attn)
+            _, ids = generator(decoder_output).max(-1)
+            if ids.eq(data.NULL_ID).sum().tolist() == batch_size:
+                break
+            emb_t = self.embeddings(ids)
+        return hidden, decoder_outputs, attns
+
+
 class NMTModel(nn.Module):
     def __init__(self, encoder, decoder):
         super(NMTModel, self).__init__()
@@ -158,14 +187,33 @@ class NMTModel(nn.Module):
 
 
     def forward(self, src, tgt, lengths, dec_state=None):
-        tgt = tgt[:-1]
+        tgt = tgt[:-1] if tgt is not None else self.generator
         enc_final, memory_bank = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank, enc_state if dec_state is None else dec_state, memory_lengths=lengths)
         slen, batch_size, embedding_dim = decoder_outputs.shape
-        decoder_outputs = self.generator(decoder_outputs.view(-1, embedding_dim)).view(slen, batch_size, -1)
-        return decoder_outputs, attns, dec_state
+        logit = self.generator(decoder_outputs.view(-1, embedding_dim)).view(slen, batch_size, -1)
+        return logit, decoder_outputs, attns, dec_state
 
+
+class Discriminator(nn.Module):
+    def __init__(self, input_size):
+        super(Discriminator, self).__init__()
+        self.rnn = stacked_rnn.StackedLSTM(1, input_size, input_size, 0.0)
+        self.projection = nn.Sequential(
+            nn.Linear(input_size, 2),
+            nn.LogSoftmax(dim=-1))
+
+
+    def forward(self, input):
+        dim = input.shape[-1]
+        batch_size = input.shape[1]
+        hidden = [[nu.zeros(batch_size, dim)], [nu.zeros(batch_size, dim)]]
+        for emb_t in input.split(1):
+            emb_t = emb_t.squeeze(0)#[batch, dim]
+            _, hidden = self.rnn(emb_t, hidden)
+        logit = self.projection(hidden[0][0])
+        return logit
 
 
 def make_loss_compute(vocab_size):
@@ -181,6 +229,13 @@ def build_model(opt, vocab_size):
     encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout, position_encoding=opt.position_encoding)
     decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
     model = NMTModel(encoder, decoder)
+    if torch.cuda.is_available():
+        model = model.cuda()
+    return model
+
+
+def build_discriminator(opt):
+    model = Discriminator(opt.rnn_size)
     if torch.cuda.is_available():
         model = model.cuda()
     return model

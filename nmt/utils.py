@@ -7,6 +7,11 @@ def tensor(v):
         return torch.tensor(v).cuda() if torch.cuda.is_available() else torch.tensor(v)
 
 
+def zeros(*kwargs):
+    v = torch.zeros(kwargs)
+    return v.cuda() if torch.cuda.is_available() else v
+
+
 def sequence_mask(lengths, max_len=None):
     batch_size = lengths.numel()
     max_len = max_len or lengths.max()
