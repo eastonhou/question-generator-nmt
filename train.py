@@ -69,18 +69,19 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
             g_loss = g_criterion(y.view(-1, vocab_size), t[1:].contiguous().view(-1)) / nu.tensor(batch_size).float()
             d_logit = discriminator(fr_hidden)
             flag = nu.tensor([1]*batch_size)
-            loss = g_loss + d_criterion(d_logit, flag)
+            d_loss = d_criterion(d_logit, flag)
+            loss = g_loss + d_loss
+            print('------{} {}, {}/{}, loss: {:>.4F}+{:>.4F}={:>.4F}'.format(step, feeder.iteration, feeder.cursor, feeder.size, g_loss.tolist(), d_loss.tolist(), loss.tolist()))
         else:
             tc_logit = discriminator(tc_hidden)
             fr_logit = discriminator(fr_hidden)
-            logit = torch.cat([tc_logit, fr_logit], dim=1)
+            logit = torch.cat([tc_logit, fr_logit], dim=0)
             flag = nu.tensor([1]*batch_size + [0]*batch_size)
             loss = d_criterion(logit, flag)
+            print('------{} {}, {}/{}, loss: {:>.4F}'.format(step, feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('------ITERATION[{}] {}, {}/{}, loss: {:>.4F}'.format(
-            step, feeder.iteration, feeder.cursor, feeder.size, loss.tolist()))
         if nbatch % 10 == 0:
             logit = z.transpose(0, 1)
             gids = logit.argmax(-1).tolist()
@@ -109,8 +110,8 @@ def train(auto_stop, steps=100):
         d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
         feeder.load_state(ckpt['feeder'])
     while True:
-        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps, 'generator')
         run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, steps, 'discriminator')
+        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps, 'generator')
         utils.mkdir(config.checkpoint_folder)
         torch.save({
             'generator':  generator.state_dict(),

@@ -202,7 +202,7 @@ class Discriminator(nn.Module):
         self.rnn = stacked_rnn.StackedLSTM(1, input_size, input_size, 0.0)
         self.projection = nn.Sequential(
             nn.Linear(input_size, 2),
-            nn.Softmax(dim=-1))
+            nn.LogSoftmax(dim=-1))
 
 
     def forward(self, input):
