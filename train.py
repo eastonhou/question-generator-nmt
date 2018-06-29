@@ -111,7 +111,7 @@ def train(auto_stop, steps=100):
         feeder.load_state(ckpt['feeder'])
     while True:
         run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, steps, 'discriminator')
-        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps, 'generator')
+        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps*2, 'generator')
         utils.mkdir(config.checkpoint_folder)
         torch.save({
             'generator':  generator.state_dict(),
