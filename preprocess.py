@@ -44,9 +44,10 @@ def prepare_dataset_with_question_answers(source, target):
         sample = json.loads(line)
         question = sample['question']
         for answer in sample['answers']:
-            lines.append(answer)
-            lines.append(question)
-            lines.append('<P>')
+            if len(answer) > len(question)*2 and len(answer) >= 20:
+                lines.append(answer)
+                lines.append(question)
+                lines.append('<P>')
     utils.write_all_lines(target, lines)
 
 

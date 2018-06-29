@@ -49,7 +49,7 @@ def evaluate():
                 lines.append('predict {}: {}'.format(k, q))
             correct += len(set(g) & set(q[0]))
             total += len(set(q[0]))
-    lines.append('correct: {}/{}, accuracy: {}', correct, total, correct/total*100)
+    lines.append('correct: {}/{}, accuracy: {}'.format(correct, total, correct/total*100))
     utils.write_all_lines(opt.output_file, lines)
 
 
