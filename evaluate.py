@@ -47,8 +47,8 @@ def evaluate():
             lines.append('reference: ' + g)
             for k, q in enumerate(qs):
                 lines.append('predict {}: {}'.format(k, q))
-            correct += len(set(g) & set(q[0]))
-            total += len(set(q[0]))
+            correct += len(set(g) & set(qs[0]))
+            total += len(set(qs[0]))
     lines.append('correct: {}/{}, accuracy: {}'.format(correct, total, correct/total*100))
     utils.write_all_lines(opt.output_file, lines)
 
