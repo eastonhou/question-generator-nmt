@@ -21,6 +21,7 @@ def evaluate_opts(parser):
     group = parser.add_argument_group('evaluate')
     group.add_argument('-beam_size', type=int, default=10)
     group.add_argument('-max_length', type=int, default=20)
+    group.add_argument('-min_length', type=int, default=5)
     group.add_argument('-batch_size', type=int, default=32)
     group.add_argument('-best_k_questions', type=int, default=3)
     group.add_argument('-output_file', type=str, default='./output/evaluate.txt')
