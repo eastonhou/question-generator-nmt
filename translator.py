@@ -8,8 +8,9 @@ import nmt.utils as nu
 from itertools import count
 
 class Beam(object):
-    def __init__(self, beam_size):
-        self.beam_size = beam_size 
+    def __init__(self, beam_size, min_length):
+        self.beam_size = beam_size
+        self.min_length = min_length
         self.sid = nu.tensor(range(beam_size))
         self.cid = nu.tensor([data.NULL_ID if i != 0 else data.SOS_ID for i in range(beam_size)])
         self.seq = [list() for _ in range(beam_size)]
@@ -24,7 +25,7 @@ class Beam(object):
         for k in range(self.beam_size):
             if self.cid[k] == data.EOS_ID:
                 scores[k].fill_(-1)
-                scores[k][data.EOS_ID] = 0
+                scores[k][data.EOS_ID] = 0 if k >= self.min_length else -1E20
         flat_scores = (scores + self.scores.unsqueeze(1).expand_as(scores)).view(-1)
         self.scores, ids = flat_scores.topk(self.beam_size)
         self.sid = ids / vocab_size
@@ -55,9 +56,10 @@ class Beam(object):
 
 class Translator(object):
 
-    def __init__(self, model, beam_size, max_length):
+    def __init__(self, model, beam_size, min_length, max_length):
         self.model = model
         self.beam_size = beam_size
+        self.min_length = min_length
         self.max_length = max_length
 
 
@@ -68,7 +70,7 @@ class Translator(object):
         memory_bank = memory_bank.repeat(1, self.beam_size, 1)
         memory_lengths = src_lengths.repeat(self.beam_size)
         dec_states.repeat_beam_size_times(self.beam_size)
-        beam = [Beam(self.beam_size) for _ in range(batch_size)]
+        beam = [Beam(self.beam_size, self.min_length) for _ in range(batch_size)]
         for _ in range(self.max_length):
             if all([b.done() for b in beam]):
                 break
