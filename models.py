@@ -84,17 +84,12 @@ class EncoderBase(nn.Module):
 
 
 class RNNEncoder(EncoderBase):
-    def __init__(self, num_layers, vocab_size, embedding_dim, hidden_size, bidirectional, dropout, use_bridge=False, position_encoding=False):
+    def __init__(self, embeddings, num_layers, hidden_size, bidirectional, dropout, use_bridge=False):
         super(RNNEncoder, self).__init__()
-        self.embedding_dim = embedding_dim
-        embeddings = nn.Embedding(vocab_size, embedding_dim, padding_idx=data.NULL_ID)
-        if position_encoding:
-            pe = modules.PositionalEncoding(dropout, embedding_dim)
-            self.embeddings = nn.Sequential(embeddings, pe)
-        else:
-            self.embeddings = nn.Sequential(embeddings)
+        self.embeddings = embeddings
+        self.vocab_size, self.embedding_dim = embeddings[0].weight.shape
         hidden_size = hidden_size//2 if bidirectional else hidden_size
-        self.rnn = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
+        self.rnn = nn.LSTM(input_size=self.embedding_dim, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout, bidirectional=bidirectional)
 
 
     def forward(self, src, lengths, encoder_state=None):
@@ -109,6 +104,7 @@ class RNNEncoder(EncoderBase):
 
 class TransformerEncoderLayer(nn.Module):
     def __init__(self, dim, head_count, hidden_size, dropout):
+        super(TransformerEncoderLayer, self).__init__()
         self.self_attn = attention.MultiHeadedAttention(head_count, dim, dropout)
         self.feed_forward = modules.PositionwiseFeedForward(dim, hidden_size, dropout)
         self.layer_norm = modules.LayerNorm(dim)
@@ -123,10 +119,11 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, embeddings, num_layers, dim, head_count, hidden_size, dropout):
+    def __init__(self, embeddings, num_layers, head_count, hidden_size, dropout):
         super(TransformerEncoder, self).__init__()
         self.num_layers = num_layers
         self.embeddings = embeddings
+        _, dim = embeddings[0].weight.shape
         self.transformer = nn.ModuleList([TransformerEncoderLayer(dim, head_count, hidden_size, dropout) for _ in range(num_layers)])
         self.layer_norm = modules.LayerNorm(dim)
 
@@ -273,9 +270,11 @@ class TransformerDecoderLayer(nn.Module):
 
         
 class TransformerDecoder(nn.Module):
-    def __init__(self, embeddings, num_layers, dim, head_count, hidden_size, dropout):
+    def __init__(self, embeddings, num_layers, head_count, hidden_size, dropout):
+        super(TransformerDecoder, self).__init__()
         self.num_layers = num_layers
         self.embeddings = embeddings
+        dim = embeddings[0].weight.shape[1]
         self.transformer_layers = nn.ModuleList([TransformerDecoderLayer(dim, head_count, hidden_size, dropout) for _ in range(num_layers)])
         self.layer_norm = modules.LayerNorm(dim)
 
@@ -326,8 +325,8 @@ class NMTModel(nn.Module):
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
-        vocab_size = self.decoder.embeddings[0].weight.shape[0]
-        self.generator = nn.Sequential(nn.Linear(self.decoder.hidden_size, vocab_size), nn.LogSoftmax(dim=-1))
+        vocab_size, dim = self.decoder.embeddings[0].weight.shape
+        self.generator = nn.Sequential(nn.Linear(dim, vocab_size), nn.LogSoftmax(dim=-1))
         self.generator[0].weight = self.decoder.embeddings[0].weight
 
 
@@ -371,8 +370,18 @@ def make_loss_compute(vocab_size):
 
 
 def build_model(opt, vocab_size):
-    encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout, position_encoding=opt.position_encoding)
-    decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
+    embeddings = nn.Embedding(vocab_size, opt.word_vec_size, padding_idx=data.NULL_ID)
+    if opt.position_encoding:
+        pe = modules.PositionalEncoding(opt.dropout, opt.word_vec_size)
+        embeddings = nn.Sequential(embeddings, pe)
+    else:
+        embeddings = nn.Sequential(embeddings)
+    if opt.model_type == 'transformer':
+        encoder = TransformerEncoder(embeddings, opt.transformer_enc_layers, opt.head_count, opt.transformer_hidden_size, opt.dropout)
+        decoder = TransformerDecoder(encoder.embeddings, opt.transformer_dec_layers, opt.head_count, opt.transformer_hidden_size, opt.dropout)
+    elif opt.model_type == 'rnn':
+        encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
+        decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
     model = NMTModel(encoder, decoder)
     if torch.cuda.is_available():
         model = model.cuda()

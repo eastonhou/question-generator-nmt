@@ -8,11 +8,11 @@ def model_opts(parser):
     group.add_argument('-bidirectional_encoder', type=bool, default=True)
     group.add_argument('-attn_type', type=str, default='general')
     group.add_argument('-position_encoding', type=bool, default=True)
-    group.add_argument('-transformer_dim', type=int, default=512)
     group.add_argument('-head_count', type=int, default=8)
     group.add_argument('-transformer_hidden_size', type=int, default=2048)
-    group.add_argument('-transform_enc_layers', type=int, default=6)
-    group.add_argument('-transform_dec_layers', type=int, default=2)
+    group.add_argument('-transformer_enc_layers', type=int, default=6)
+    group.add_argument('-transformer_dec_layers', type=int, default=2)
+    group.add_argument('-model_type', type=str, default='transformer')
 
 
 def train_opts(parser):
