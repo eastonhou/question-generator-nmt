@@ -23,7 +23,8 @@
             "program": "${workspaceFolder}/train.py",
             "args": [
                 "-using_gan", "0",
-                "-transformer_enc_layers", "2"
+                "-transformer_enc_layers", "6",
+                "-batch_size", "64"
             ]
         },
         {
