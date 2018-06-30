@@ -123,8 +123,9 @@ class MultiHeadedAttention(nn.Module):
         value_up = shape(self.linear_values(value))#[batch, head_count, value_len, dim_per_head]
         query_up = shape(self.linear_query(query)) / math.sqrt(self.dim_per_head)#[batch, head_count, query_len, dim_per_head]
         scores = torch.matmul(query_up, key_up.transpose(2, 3))#[batch, head_count, query_len, key_len]
-        mask = mask.unsqueeze(1).expand_as(scores)#[batch, head_count, query_len, key_len]
-        scores = scores.masked_fill(mask, -1E18)#[batch, head_count, query_len, key_len]
+        if mask is not None:
+            mask = mask.unsqueeze(1).expand_as(scores)#[batch, head_count, query_len, key_len]
+            scores = scores.masked_fill(mask, -1E18)#[batch, head_count, query_len, key_len]
         attn = self.sm(scores)#[batch, head_count, query_len, key_len]
         drop_attn = self.dropout(attn)
         context = torch.matmul(drop_attn, value_up)#[batch, head_count, query_len, dim_per_head]

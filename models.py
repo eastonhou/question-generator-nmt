@@ -22,7 +22,9 @@ class DecoderState(object):
         for e in self._all:
             sizes = e.shape
             br = sizes[1]
-            if e.dim() == 3:
+            if e.dim() == 2:
+                sent_states = e.view(sizes[0], beam_size, br//beam_size)[:,:,idx]
+            elif e.dim() == 3:
                 sent_states = e.view(sizes[0], beam_size, br//beam_size, sizes[2])[:,:,idx]
             else:
                 sent_states = e.view(sizes[0], beam_size, br//beam_size, sizes[2], sizes[3])[:,:,idx]
@@ -75,7 +77,7 @@ class TransformerDecoderState(DecoderState):
 
 
     def repeat_beam_size_times(self, beam_size):
-        self.src = self.src.data.repeat(1, beam_size, 1)
+        self.src = self.src.data.repeat(1, beam_size)
 
 
 class EncoderBase(nn.Module):
@@ -285,6 +287,9 @@ class TransformerDecoder(nn.Module):
         
     def forward(self, tgt, memory_bank, state, memory_lengths):
         assert isinstance(state, TransformerDecoderState)
+        src = state.src
+        src_words = src.transpose(0, 1)#[batch, len]
+        tgt_words = tgt.transpose(0, 1)
         if state.previous_input is not None:
             tgt = torch.cat([state.previous_input, tgt], 0)
         outputs = []
@@ -294,9 +299,6 @@ class TransformerDecoder(nn.Module):
             emb = emb[state.previous_input.shape[0]:,]
         output = emb.transpose(0, 1).contiguous()
         src_memory_bank = memory_bank.transpose(0, 1).contiguous()
-        src = state.src
-        src_words = src.transpose(0, 1)
-        tgt_words = tgt.transpose(0, 1)
         batch_size, src_len = src_words.shape
         _, tgt_len = tgt_words.shape
         src_pad_mask = src_words.data.eq(data.NULL_ID).unsqueeze(1).expand(batch_size, tgt_len, src_len)
