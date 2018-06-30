@@ -55,6 +55,29 @@ class RNNDecoderState(DecoderState):
         self.input_feed = vars[-1]
 
 
+class TransformerDecoderState(DecoderState):
+    def __init__(self, src):
+        self.src = src
+        self.previous_input = None
+        self.previous_layer_inputs = None
+
+
+    @property
+    def _all(self):
+        return self.previous_input, self.previous_layer_inputs, self.src
+
+
+    def update_state(self, input, previous_layer_inputs):
+        state = TransformerDecoderState(self.src)
+        state.previous_input = input
+        state.previous_layer_inputs = previous_layer_inputs
+        return state
+
+
+    def repeat_beam_size_times(self, beam_size):
+        self.src = self.src.data.repeat(1, beam_size, 1)
+
+
 class EncoderBase(nn.Module):
     def forward(self, src, lengths=None, encoder_state=None):
         raise NotImplementedError
@@ -82,6 +105,42 @@ class RNNEncoder(EncoderBase):
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
         memory_bank = unpack(memory_bank)[0]
         return encoder_final, memory_bank
+
+
+class TransformerEncoderLayer(nn.Module):
+    def __init__(self, dim, head_count, hidden_size, dropout):
+        self.self_attn = attention.MultiHeadedAttention(head_count, dim, dropout)
+        self.feed_forward = modules.PositionwiseFeedForward(dim, hidden_size, dropout)
+        self.layer_norm = modules.LayerNorm(dim)
+        self.dropout = nn.Dropout(dropout)
+
+
+    def forward(self, inputs, mask):
+        input_norm = self.layer_norm(inputs)
+        context, _ = self.self_attn(input_norm, input_norm, input_norm, mask=mask)
+        out = self.dropout(context) + inputs
+        return self.feed_forward(out)
+
+
+class TransformerEncoder(nn.Module):
+    def __init__(self, embeddings, num_layers, dim, head_count, hidden_size, dropout):
+        super(TransformerEncoder, self).__init__()
+        self.num_layers = num_layers
+        self.embeddings = embeddings
+        self.transformer = nn.ModuleList([TransformerEncoderLayer(dim, head_count, hidden_size, dropout) for _ in range(num_layers)])
+        self.layer_norm = modules.LayerNorm(dim)
+
+
+    def forward(self, input, lengths, hidden=None):
+        emb = self.embeddings(input)
+        out = emb.transpose(0, 1).contiguous()#[batch, plen, dim]
+        words = input.transpose(0, 1)#[batch, plen]
+        batch_size, plen = words.shape
+        mask = words.eq(data.NULL_ID).unsqueeze(1).expand(batch_size, plen, plen)
+        for m in self.transformer:
+            out = m(out, mask)
+        out = self.layer_norm(out)
+        return emb, out.transpose(0, 1).contiguous()#[plen, batch, dim], [plen, batch, dim]
 
 
 class RNNDecoderBase(nn.Module):
@@ -174,6 +233,92 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 break
             emb_t = self.embeddings(ids.unsqueeze(0)).squeeze(0)
         return hidden, decoder_outputs, attns
+
+
+class TransformerDecoderLayer(nn.Module):
+    def __init__(self, dim, head_count, hidden_size, dropout, max_size=400):
+        super(TransformerDecoderLayer, self).__init__()
+        self.self_attn = attention.MultiHeadedAttention(head_count, dim, dropout)
+        self.context_attn = attention.MultiHeadedAttention(head_count, dim, dropout)
+        self.feed_forward = modules.PositionwiseFeedForward(dim, hidden_size, dropout)
+        self.layer_norm1 = modules.LayerNorm(dim)
+        self.layer_norm2 = modules.LayerNorm(dim)
+        self.dropout = dropout
+        self.drop = nn.Dropout(dropout)
+        mask = self._get_attn_subsequent_mask(max_size)
+        self.register_buffer('mask', mask)
+
+
+    def forward(self, inputs, memory_bank, src_pad_mask, tgt_pad_mask, previous_input=None):
+        dec_mask = torch.gt(tgt_pad_mask + self.mask[:, :tgt_pad_mask.shape[1], :tgt_pad_mask.shape[1]], 0)
+        input_norm = self.layer_norm1(inputs)
+        all_input = input_norm#[batch, plen, dim]
+        if previous_input is not None:
+            all_input = torch.cat([previous_input, input_norm], dim=1)
+            dec_mask = None
+        query, attn = self.self_attn(all_input, all_input, input_norm, mask=dec_mask)
+        query = self.drop(query) + inputs
+        query_norm = self.layer_norm2(query)
+        mid, attn = self.context_attn(memory_bank, memory_bank, query_norm, mask=src_pad_mask)
+        output = self.feed_forward(self.drop(mid) + query)
+        return output, attn, all_input
+
+
+    def _get_attn_subsequent_mask(self, size):
+        ''' Get an attention mask to avoid using the subsequent info.'''
+        attn_shape = (1, size, size)
+        subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype('uint8')
+        subsequent_mask = torch.from_numpy(subsequent_mask)
+        return subsequent_mask
+
+        
+class TransformerDecoder(nn.Module):
+    def __init__(self, embeddings, num_layers, dim, head_count, hidden_size, dropout):
+        self.num_layers = num_layers
+        self.embeddings = embeddings
+        self.transformer_layers = nn.ModuleList([TransformerDecoderLayer(dim, head_count, hidden_size, dropout) for _ in range(num_layers)])
+        self.layer_norm = modules.LayerNorm(dim)
+
+
+    def init_decoder_state(self, src, memory_bank, enc_hidden):
+        return TransformerDecoderState(src)
+
+        
+    def forward(self, tgt, memory_bank, state, memory_lengths):
+        assert isinstance(state, TransformerDecoderState)
+        if state.previous_input is not None:
+            tgt = torch.cat([state.previous_input, tgt], 0)
+        outputs = []
+        attns = {'std': []}
+        emb = self.embeddings(tgt)#[plen, batch, dim]
+        if state.previous_input is not None:
+            emb = emb[state.previous_input.shape[0]:,]
+        output = emb.transpose(0, 1).contiguous()
+        src_memory_bank = memory_bank.transpose(0, 1).contiguous()
+        src = state.src
+        src_words = src.transpose(0, 1)
+        tgt_words = tgt.transpose(0, 1)
+        batch_size, src_len = src_words.shape
+        _, tgt_len = tgt_words.shape
+        src_pad_mask = src_words.data.eq(data.NULL_ID).unsqueeze(1).expand(batch_size, tgt_len, src_len)
+        tgt_pad_mask = tgt_words.data.eq(data.NULL_ID).unsqueeze(1).expand(batch_size, tgt_len, tgt_len)
+        saved_inputs = []
+        for i in range(self.num_layers):
+            prev_layer_input = None
+            if state.previous_input is not None:
+                prev_layer_input = state.previous_layer_inputs[i]
+            output, attn, all_input = self.transformer_layers[i](output, src_memory_bank, src_pad_mask, tgt_pad_mask, previous_input=prev_layer_input)
+            saved_inputs.append(all_input)
+        saved_inputs = torch.stack(saved_inputs)
+        output = self.layer_norm(output)
+        # Process the result and update the attentions.
+        outputs = output.transpose(0, 1).contiguous()
+        attn = attn.transpose(0, 1).contiguous()
+
+        attns["std"] = attn
+        # Update the state.
+        state = state.update_state(tgt, saved_inputs)
+        return outputs, state, attns
 
 
 class NMTModel(nn.Module):
