@@ -10,3 +10,5 @@ raw_train_file = './data/zhidao.train.json'
 raw_dev_file = './data/zhidao.dev.json'
 raw_test_file = './data/zhidao.test.json'
 stopwords_file = './data/stopwords.txt'
+
+evaluate_output_file = './output/evaluate.txt'

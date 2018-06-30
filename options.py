@@ -15,6 +15,7 @@ def train_opts(parser):
     group.add_argument('-batch_size', type=int, default=64)
     group.add_argument('-learning_rate', type=float, default=0.001)
     group.add_argument('-dropout', type=float, default=0.3)
+    group.add_argument('-using_gan', type=bool, default=True)
 
 
 def evaluate_opts(parser):

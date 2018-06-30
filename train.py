@@ -7,6 +7,7 @@ import data
 import utils
 import os
 import nmt.utils as nu
+import evaluate
 
 ckpt_path = os.path.join(config.checkpoint_folder, 'model.ckpt')
 
@@ -93,7 +94,7 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
     return loss
 
 
-def train(auto_stop, steps=20):
+def train(auto_stop, steps=200, evaluate_size=1000):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
@@ -109,18 +110,26 @@ def train(auto_stop, steps=20):
         g_optimizer.load_state_dict(ckpt['generator_optimizer'])
         d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
         feeder.load_state(ckpt['feeder'])
+    last_accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
     while True:
-        run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, steps, 'discriminator')
-        run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, steps*2, 'generator')
-        utils.mkdir(config.checkpoint_folder)
-        torch.save({
-            'generator':  generator.state_dict(),
-            'discriminator': discriminator.state_dict(),
-            'generator_optimizer': g_optimizer.state_dict(),
-            'discriminator_optimizer': d_optimizer.state_dict(),
-            'feeder': feeder.state()
-            }, ckpt_path)
-        print('MODEL SAVED.')
+        if opt.using_gan:
+            mini_steps = steps // 5
+            run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, mini_steps, 'discriminator')
+            run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, mini_steps*4, 'generator')
+        else:
+            run_epoch(opt, generator, feeder, g_optimizer, steps)
+        accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
+        if accuracy > last_accuracy:
+            utils.mkdir(config.checkpoint_folder)
+            torch.save({
+                'generator':  generator.state_dict(),
+                'discriminator': discriminator.state_dict(),
+                'generator_optimizer': g_optimizer.state_dict(),
+                'discriminator_optimizer': d_optimizer.state_dict(),
+                'feeder': feeder.state()
+                }, ckpt_path)
+            print('MODEL SAVED.')
+            last_accuracy = accuracy
 
 
 train(False)
