@@ -110,7 +110,9 @@ def train(auto_stop, steps=400, evaluate_size=500):
         g_optimizer.load_state_dict(ckpt['generator_optimizer'])
         d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
         feeder.load_state(ckpt['feeder'])
-    last_accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
+        last_accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
+    else:
+        last_accuracy = 0
     while True:
         if opt.using_gan == 1:
             mini_steps = steps // 10
