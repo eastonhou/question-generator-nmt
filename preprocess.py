@@ -8,7 +8,6 @@ from collections import defaultdict
 stop_words = set(utils.read_all_lines(config.stopwords_file))
 
 def create_vocab(filename):
-    word_vocab = defaultdict(lambda: 0)
     char_vocab = defaultdict(lambda: 0)
     for line in utils.read_all_lines(filename):
         for word in line.split(' '):
