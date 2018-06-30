@@ -105,6 +105,9 @@ class TrainFeeder(Feeder):
         if self.eof():
             self.iteration += 1
             self.cursor = 0
+            if self.data == self.dataset.train_set:
+                random.shuffle(self.data_index)
+
         size = min(self.size - self.cursor, batch_size)
         batch = self.data_index[self.cursor:self.cursor+size]
         batch = [self.data[idx] for idx in batch]

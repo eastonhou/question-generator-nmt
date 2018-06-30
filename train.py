@@ -32,7 +32,7 @@ def print_prediction(feeder, similarity, pids, qids, labels, number=None):
 def run_epoch(opt, model, feeder, optimizer, batches):
     nbatch = 0
     vocab_size = feeder.dataset.vocab_size
-    criterion = models.make_loss_compute(model.vocab_size)
+    criterion = models.make_loss_compute(vocab_size)
     while nbatch < batches:
         x, t, lengths, _, qids = data.next(feeder, opt.batch_size)
         batch_size = lengths.shape[0]
@@ -94,7 +94,7 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
     return loss
 
 
-def train(auto_stop, steps=200, evaluate_size=1000):
+def train(auto_stop, steps=400, evaluate_size=500):
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.TrainFeeder(dataset)
@@ -112,10 +112,12 @@ def train(auto_stop, steps=200, evaluate_size=1000):
         feeder.load_state(ckpt['feeder'])
     last_accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
     while True:
-        if opt.using_gan:
-            mini_steps = steps // 5
+        if opt.using_gan == 1:
+            mini_steps = steps // 10
+            state = feeder.state()
             run_gan_epoch(opt, generator, discriminator, feeder, d_optimizer, mini_steps, 'discriminator')
-            run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, mini_steps*4, 'generator')
+            feeder.load_state(state)
+            run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, mini_steps*9, 'generator')
         else:
             run_epoch(opt, generator, feeder, g_optimizer, steps)
         accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)

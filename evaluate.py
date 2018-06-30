@@ -66,7 +66,7 @@ def evaluate_policy_docs():
     utils.write_all_lines(opt.output_file, lines)
         
 
-def evaluate_accuracy(model, dataset, batch_size=20, beam_size=5, min_length=5, max_length=20, best_k_questions=3, size=None, output_file=config.evaluate_output_file):
+def evaluate_accuracy(model, dataset, batch_size=50, beam_size=5, min_length=5, max_length=20, best_k_questions=3, size=None, output_file=config.evaluate_output_file):
     feeder = data.TrainFeeder(dataset)
     feeder.prepare('dev')
     translator = Translator(model, beam_size, min_length, max_length)
