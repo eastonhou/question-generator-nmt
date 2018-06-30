@@ -20,12 +20,12 @@ def train_opts(parser):
     group.add_argument('-batch_size', type=int, default=64)
     group.add_argument('-learning_rate', type=float, default=0.001)
     group.add_argument('-dropout', type=float, default=0.3)
-    group.add_argument('-using_gan', type=bool, default=True)
+    group.add_argument('-using_gan', type=int, default=1)
 
 
 def evaluate_opts(parser):
     group = parser.add_argument_group('evaluate')
-    group.add_argument('-beam_size', type=int, default=10)
+    group.add_argument('-beam_size', type=int, default=5)
     group.add_argument('-max_length', type=int, default=20)
     group.add_argument('-min_length', type=int, default=5)
     group.add_argument('-batch_size', type=int, default=32)
