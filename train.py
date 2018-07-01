@@ -117,7 +117,7 @@ def train(auto_stop, steps=200, evaluate_size=500):
             last_accuracy = accuracy
             print('MODEL SAVED WITH ACCURACY {:>.2F}.'.format(accuracy))
         else:
-            models.restore(ckpt, generator, discriminator, g_optimizer, d_optimizer)
+            models.restore(generator, discriminator, g_optimizer, d_optimizer)
             print('MODEL RESTORED {:>.2F}/{:>.2F}.'.format(accuracy, last_accuracy))
 
 train(False)

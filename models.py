@@ -426,14 +426,17 @@ def load_or_create_models(opt, train):
         return generator, ckpt
 
 
-def restore(ckpt, generator, discriminator, g_optimizer, d_optimizer):
+def restore(generator, discriminator, g_optimizer, d_optimizer):
+    ckpt_path = os.path.join(config.checkpoint_folder, 'model.pt')
+    ckpt = torch.load(ckpt_path, map_location=lambda storage, location: storage)
+
     if generator is not None:
         generator.load_state_dict(ckpt['generator'])
-    if discriminator:
+    if discriminator is not None:
         discriminator.load_state_dict(ckpt['discriminator'])
-    if g_optimizer:
+    if g_optimizer is not None:
         g_optimizer.load_state_dict(ckpt['generator_optimizer'])
-    if d_optimizer:
+    if d_optimizer is not None:
         d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
 
 
