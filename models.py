@@ -460,7 +460,7 @@ def build_train_models(opt):
     feeder = data.TrainFeeder(dataset)
     g_optimizer = torch.optim.Adam(generator.parameters(), lr=opt.learning_rate)
     d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=opt.learning_rate)
-    feeder.prepare('train')
+    feeder.prepare('train', opt.batch_size)
     return generator, discriminator, g_optimizer, d_optimizer, feeder
 
 

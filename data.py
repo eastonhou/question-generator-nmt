@@ -23,8 +23,9 @@ class Dataset(object):
         self.char_weights = [self.i2n[id] for id in range(len(self.chars))]
         self.norm_char_weights = self.char_weights / np.sum(self.char_weights)
         self.vocab_size = len(self.c2i)
-        self.train_set = load_qa(config.train_file, config.answer_limit)
-        self.dev_set = load_qa(config.dev_file, config.answer_limit)
+        self.train_set = load_qa(config.train_file)
+        self.train_set = sorted(self.train_set, key=lambda x:len(x[0]))
+        self.dev_set = load_qa(config.dev_file)
 
 
 class Feeder(object):
@@ -63,16 +64,30 @@ class TrainFeeder(Feeder):
         super(TrainFeeder, self).__init__(dataset)
 
 
-    def prepare(self, type):
+    def prepare(self, type, batch_size=None):
         if type == 'train':
             self.prepare_data(self.dataset.train_set)
-            random.shuffle(self.data_index)
         elif type == 'dev':
             self.prepare_data(self.dataset.dev_set)
             self.keep_prob = 1.0
-        self.cursor = 0
         self.iteration = 1
         self.size = len(self.data)
+        if batch_size is not None:
+            self.cursor = 0
+            self.size = self.size // batch_size * batch_size
+            self.shuffle_index(batch_size)
+        else:
+            self.cursor = self.size
+
+
+    def shuffle_index(self, batch_size):
+        batch_ids = list(range((self.size+batch_size-1) // batch_size))
+        random.shuffle(batch_ids)
+        self.data_index = []
+        for batch_id in batch_ids:
+            start = batch_id * batch_size
+            end = min(start+batch_size, self.size)
+            self.data_index += range(start, end)
 
 
     def prepare_data(self, dataset):
@@ -106,7 +121,7 @@ class TrainFeeder(Feeder):
             self.iteration += 1
             self.cursor = 0
             if self.data == self.dataset.train_set:
-                random.shuffle(self.data_index)
+                self.shuffle_index(batch_size)
 
         size = min(self.size - self.cursor, batch_size)
         batch = self.data_index[self.cursor:self.cursor+size]
@@ -153,14 +168,14 @@ def load_vocab(filename, count):
     return w2i, i2w, i2c
 
 
-def load_qa(filename, answer_limit):
+def load_qa(filename):
     lines = []
     r = []
     skipped = 0
     for line in utils.read_all_lines(filename):
         if line == '<P>':
             passage = lines[0].replace(' ', '')
-            if len(passage) <= answer_limit:
+            if config.min_limit <= len(passage) <= config.max_limit:
                 questions = [q.replace(' ', '') for q in lines[1:]]
                 if questions:
                     r.append((passage, questions))
