@@ -6,6 +6,7 @@ import config
 import data
 import utils
 import os
+import random
 import nmt.utils as nu
 import evaluate
 
@@ -117,7 +118,10 @@ def train(auto_stop, steps=200, evaluate_size=500):
             last_accuracy = accuracy
             print('MODEL SAVED WITH ACCURACY {:>.2F}.'.format(accuracy))
         else:
-            models.restore(generator, discriminator, g_optimizer, d_optimizer)
-            print('MODEL RESTORED {:>.2F}/{:>.2F}.'.format(accuracy, last_accuracy))
+            if random.randint(0, 4) == 0:
+                models.restore(generator, discriminator, g_optimizer, d_optimizer)
+                print('MODEL RESTORED {:>.2F}/{:>.2F}.'.format(accuracy, last_accuracy))
+            else:
+                print('CONTINUE TRAINING {:>.2F}/{:>.2F}.'.format(accuracy, last_accuracy))
 
 train(False)
