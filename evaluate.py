@@ -26,7 +26,7 @@ def evaluate():
     model = models.build_model(opt, dataset.vocab_size)
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
+        model.load_state_dict(ckpt['generator'])
     evaluate_accuracy(model, dataset, opt.batch_size, opt.beam_size, opt.min_length, opt.max_length, opt.best_k_questions, opt.output_file)
 
 
@@ -38,7 +38,7 @@ def evaluate_policy_docs():
     translator = Translator(model, opt.beam_size, opt.min_length, opt.max_length)
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
+        model.load_state_dict(ckpt['generator'])
     docs = data.load_policy_documents()
     for doc in docs:
         data.parse_paragraphs(doc)
