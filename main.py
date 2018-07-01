@@ -23,11 +23,8 @@ def build_translator():
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.Feeder(dataset)
-    model = models.build_model(opt, dataset.vocab_size)
+    model = models.load_or_create_models(opt)
     translator = Translator(model, opt.beam_size, opt.min_length, opt.max_length)
-    if os.path.isfile(ckpt_path):
-        ckpt = torch.load(ckpt_path, map_location=lambda storage, location: storage)
-        model.load_state_dict(ckpt['generator'])
     return translator, feeder
 
 

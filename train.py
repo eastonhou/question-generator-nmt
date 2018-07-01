@@ -94,23 +94,11 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
     return loss
 
 
-def train(auto_stop, steps=400, evaluate_size=500):
+def train(auto_stop, steps=200, evaluate_size=50):
     opt = make_options()
-    dataset = data.Dataset()
-    feeder = data.TrainFeeder(dataset)
-    generator = models.build_model(opt, dataset.vocab_size)
-    discriminator = models.build_discriminator(opt)
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=opt.learning_rate)
-    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=opt.learning_rate)
-    feeder.prepare('train')
-    if os.path.isfile(ckpt_path):
-        ckpt = torch.load(ckpt_path)
-        generator.load_state_dict(ckpt['generator'])
-        discriminator.load_state_dict(ckpt['discriminator'])
-        g_optimizer.load_state_dict(ckpt['generator_optimizer'])
-        d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
-        feeder.load_state(ckpt['feeder'])
-        last_accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
+    generator, discriminator, g_optimizer, d_optimizer, feeder, ckpt = models.load_or_create_models(opt, True)
+    if ckpt is not None:
+        last_accuracy = evaluate.evaluate_accuracy(generator, feeder.dataset, size=evaluate_size)
     else:
         last_accuracy = 0
     while True:
@@ -122,18 +110,14 @@ def train(auto_stop, steps=400, evaluate_size=500):
             run_gan_epoch(opt, generator, discriminator, feeder, g_optimizer, mini_steps*9, 'generator')
         else:
             run_epoch(opt, generator, feeder, g_optimizer, steps)
-        accuracy = evaluate.evaluate_accuracy(generator, dataset, size=evaluate_size)
+        accuracy = evaluate.evaluate_accuracy(generator, feeder.dataset, size=evaluate_size)
         if accuracy > last_accuracy:
             utils.mkdir(config.checkpoint_folder)
-            torch.save({
-                'generator':  generator.state_dict(),
-                'discriminator': discriminator.state_dict(),
-                'generator_optimizer': g_optimizer.state_dict(),
-                'discriminator_optimizer': d_optimizer.state_dict(),
-                'feeder': feeder.state()
-                }, ckpt_path)
+            models.save_models(opt, generator, discriminator, g_optimizer, d_optimizer, feeder)
             print('MODEL SAVED.')
             last_accuracy = accuracy
+        else:
+            models.restore(ckpt, generator, discriminator, g_optimizer, d_optimizer)
 
 
 train(False)

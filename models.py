@@ -8,6 +8,9 @@ import nmt.attention as attention
 import nmt.modules as modules
 import nmt.utils as nu
 import numpy as np
+import config
+import os
+import utils
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
@@ -395,6 +398,70 @@ def build_discriminator(opt):
     if nu.gpu_available():
         model = model.cuda()
     return model
+
+
+def load_or_create_models(opt, train):
+    ckpt_path = os.path.join(config.checkpoint_folder, 'model.pt')
+    if os.path.isfile(ckpt_path):
+        ckpt = torch.load(ckpt_path, map_location=lambda storage, location: storage)
+        model_options = ckpt['model_options']
+        for k, v in model_options.items():
+            setattr(opt, k, v)
+    else:
+        ckpt = None
+    if train:
+        generator, discriminator, g_optimizer, d_optimizer, feeder = build_train_models(opt)
+    else:
+        generator = build_model(opt, data.calc_vocab_size())
+    if ckpt is not None:
+        generator.load_state_dict(ckpt['generator'])
+        if train:
+            discriminator.load_state_dict(ckpt['discriminator'])
+            g_optimizer.load_state_dict(ckpt['generator_optimizer'])
+            d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
+            feeder.load_state(ckpt['feeder'])
+    if train:
+        return generator, discriminator, g_optimizer, d_optimizer, feeder, ckpt
+    else:
+        return generator, ckpt
+
+
+def restore(ckpt, generator, discriminator, g_optimizer, d_optimizer):
+    if generator is not None:
+        generator.load_state_dict(ckpt['generator'])
+    if discriminator:
+        discriminator.load_state_dict(ckpt['discriminator'])
+    if g_optimizer:
+        g_optimizer.load_state_dict(ckpt['generator_optimizer'])
+    if d_optimizer:
+        d_optimizer.load_state_dict(ckpt['discriminator_optimizer'])
+
+
+def save_models(opt, generator, discriminator, g_optimizer, d_optimizer, feeder):
+    ckpt_path = os.path.join(config.checkpoint_folder, 'model.pt')
+    model_options = ['num_layers', 'word_vec_size', 'rnn_size', 'bidirectional_encoder', 'attn_type', 'position_encoding',
+        'head_count', 'transformer_hidden_size', 'transformer_enc_layers', 'transformer_dec_layers', 'model_type']
+    model_options = {k:getattr(opt, k) for k in model_options}
+    utils.mkdir(config.checkpoint_folder)
+    torch.save({
+        'generator':  generator.state_dict(),
+        'discriminator': discriminator.state_dict(),
+        'generator_optimizer': g_optimizer.state_dict(),
+        'discriminator_optimizer': d_optimizer.state_dict(),
+        'feeder': feeder.state(),
+        'model_options': model_options
+        }, ckpt_path)
+
+
+def build_train_models(opt):
+    dataset = data.Dataset()
+    generator = build_model(opt, dataset.vocab_size)
+    discriminator = build_discriminator(opt)
+    feeder = data.TrainFeeder(dataset)
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=opt.learning_rate)
+    d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=opt.learning_rate)
+    feeder.prepare('train')
+    return generator, discriminator, g_optimizer, d_optimizer, feeder
 
 
 if __name__ == '__main__':

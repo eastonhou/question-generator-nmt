@@ -169,6 +169,11 @@ def load_qa(filename, answer_limit):
     return r
 
 
+def calc_vocab_size():
+    c2i, _, _ = load_vocab(config.vocab_file, config.vocab_size)
+    return len(c2i)
+    
+
 def align2d(values, fill=0):
     mlen = max([len(row) for row in values])
     return [row + [fill] * (mlen - len(row)) for row in values]
