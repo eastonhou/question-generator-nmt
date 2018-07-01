@@ -2,7 +2,7 @@ import argparse
 
 def model_opts(parser):
     group = parser.add_argument_group('model')
-    group.add_argument('-num_layers', type=int, default=2)
+    group.add_argument('-num_layers', type=int, default=4)
     group.add_argument('-word_vec_size', type=int, default=512)
     group.add_argument('-rnn_size', type=int, default=512)
     group.add_argument('-bidirectional_encoder', type=bool, default=True)
@@ -12,7 +12,7 @@ def model_opts(parser):
     group.add_argument('-transformer_hidden_size', type=int, default=2048)
     group.add_argument('-transformer_enc_layers', type=int, default=6)
     group.add_argument('-transformer_dec_layers', type=int, default=2)
-    group.add_argument('-model_type', type=str, default='transformer')
+    group.add_argument('-model_type', type=str, default='rnn')
 
 
 def train_opts(parser):
@@ -20,7 +20,7 @@ def train_opts(parser):
     group.add_argument('-batch_size', type=int, default=64)
     group.add_argument('-learning_rate', type=float, default=0.001)
     group.add_argument('-dropout', type=float, default=0.3)
-    group.add_argument('-using_gan', type=int, default=1)
+    group.add_argument('-using_gan', type=int, default=0)
 
 
 def evaluate_opts(parser):

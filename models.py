@@ -380,10 +380,10 @@ def build_model(opt, vocab_size):
         embeddings = nn.Sequential(embeddings)
     if opt.model_type == 'transformer':
         encoder = TransformerEncoder(embeddings, opt.transformer_enc_layers, opt.head_count, opt.transformer_hidden_size, opt.dropout)
-        decoder = TransformerDecoder(encoder.embeddings, opt.transformer_dec_layers, opt.head_count, opt.transformer_hidden_size, opt.dropout)
+        decoder = TransformerDecoder(embeddings, opt.transformer_dec_layers, opt.head_count, opt.transformer_hidden_size, opt.dropout)
     elif opt.model_type == 'rnn':
-        encoder = RNNEncoder(opt.num_layers, vocab_size, opt.word_vec_size, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
-        decoder = InputFeedRNNDecoder(encoder.embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
+        encoder = RNNEncoder(embeddings, opt.num_layers, opt.rnn_size, opt.bidirectional_encoder, opt.dropout)
+        decoder = InputFeedRNNDecoder(embeddings, opt.num_layers, opt.bidirectional_encoder, opt.rnn_size, opt.attn_type, opt.dropout)
     model = NMTModel(encoder, decoder)
     if nu.gpu_available():
         model = model.cuda()
