@@ -114,10 +114,10 @@ def train(auto_stop, steps=200, evaluate_size=50):
         if accuracy > last_accuracy:
             utils.mkdir(config.checkpoint_folder)
             models.save_models(opt, generator, discriminator, g_optimizer, d_optimizer, feeder)
-            print('MODEL SAVED.')
             last_accuracy = accuracy
+            print('MODEL SAVED.')
         else:
             models.restore(ckpt, generator, discriminator, g_optimizer, d_optimizer)
-
+            print('MODEL RESTORED.')
 
 train(False)
