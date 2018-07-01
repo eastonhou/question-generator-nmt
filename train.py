@@ -94,7 +94,7 @@ def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, ste
     return loss
 
 
-def train(auto_stop, steps=200, evaluate_size=50):
+def train(auto_stop, steps=200, evaluate_size=500):
     opt = make_options()
     generator, discriminator, g_optimizer, d_optimizer, feeder, ckpt = models.load_or_create_models(opt, True)
     if ckpt is not None:

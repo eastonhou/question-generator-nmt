@@ -156,6 +156,7 @@ def load_vocab(filename, count):
 def load_qa(filename, answer_limit):
     lines = []
     r = []
+    skipped = 0
     for line in utils.read_all_lines(filename):
         if line == '<P>':
             passage = lines[0].replace(' ', '')
@@ -163,9 +164,12 @@ def load_qa(filename, answer_limit):
                 questions = [q.replace(' ', '') for q in lines[1:]]
                 if questions:
                     r.append((passage, questions))
+            else:
+                skipped += 1
             lines.clear()
         else:
             lines.append(line)
+    print('skipped {} records in {}'.format(skipped, filename))
     return r
 
 
