@@ -75,7 +75,8 @@ class TrainFeeder(Feeder):
         if batch_size is not None:
             self.cursor = 0
             self.size = self.size // batch_size * batch_size
-            self.shuffle_index(batch_size)
+            if type == 'train':
+                self.shuffle_index(batch_size)
         else:
             self.cursor = self.size
 
