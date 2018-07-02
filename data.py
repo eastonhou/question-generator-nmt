@@ -81,6 +81,10 @@ class TrainFeeder(Feeder):
             self.cursor = self.size
 
 
+    def sort(self):
+        self.data_index = sorted(range(self.size), key=lambda x:-len(self.data[x][0]))
+        
+
     def shuffle_index(self, batch_size):
         batch_ids = list(range((self.size+batch_size-1) // batch_size))
         random.shuffle(batch_ids)
