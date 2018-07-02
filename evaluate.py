@@ -23,7 +23,7 @@ def make_options():
 def evaluate():
     opt = make_options()
     dataset = data.Dataset()
-    model = models.load_or_create_models(opt, False)
+    model, _ = models.load_or_create_models(opt, False)
     evaluate_accuracy(model, dataset, opt.batch_size, opt.beam_size, opt.min_length, opt.max_length, opt.best_k_questions, None, opt.output_file)
 
 
@@ -31,7 +31,7 @@ def evaluate_policy_docs():
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.Feeder(dataset)
-    model = models.load_or_create_models(opt, False)
+    model, _ = models.load_or_create_models(opt, False)
     translator = Translator(model, opt.beam_size, opt.min_length, opt.max_length)
     docs = data.load_policy_documents()
     for doc in docs:
