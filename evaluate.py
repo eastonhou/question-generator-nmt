@@ -24,7 +24,7 @@ def evaluate():
     opt = make_options()
     dataset = data.Dataset()
     model = models.load_or_create_models(opt, False)
-    evaluate_accuracy(model, dataset, opt.batch_size, opt.beam_size, opt.min_length, opt.max_length, opt.best_k_questions, opt.output_file)
+    evaluate_accuracy(model, dataset, opt.batch_size, opt.beam_size, opt.min_length, opt.max_length, opt.best_k_questions, None, opt.output_file)
 
 
 def evaluate_policy_docs():
