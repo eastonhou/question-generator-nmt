@@ -169,6 +169,12 @@ def load_vocab(filename, count):
     return w2i, i2w, i2c
 
 
+def process_question(q):
+    q = q.replace('_百度知道', '')
+    q = q.replace(' ', '')
+    return q
+
+
 def load_qa(filename):
     lines = []
     r = []
@@ -177,7 +183,7 @@ def load_qa(filename):
         if line == '<P>':
             passage = lines[0].replace(' ', '')
             if config.min_limit <= len(passage) <= config.max_limit:
-                questions = [q.replace(' ', '') for q in lines[1:]]
+                questions = [process_question(q) for q in lines[1:]]
                 if questions:
                     r.append((passage, questions))
             else:
