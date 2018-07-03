@@ -23,7 +23,7 @@ def build_translator():
     opt = make_options()
     dataset = data.Dataset()
     feeder = data.Feeder(dataset)
-    model = models.load_or_create_models(opt)
+    model, _ = models.load_or_create_models(opt, False)
     translator = Translator(model, opt.beam_size, opt.min_length, opt.max_length)
     return translator, feeder
 

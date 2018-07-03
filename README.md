@@ -22,5 +22,5 @@ PS: since dureader test set doen't have labels, validation set is used to comput
 definition of accuracy: #correct words/#total words.
 
 5. Baseline
-generative adverserial network: 39.59
-teaching forcing: evaluating
+42 iterations generative adverserial network: 43.29
+44 iterations teaching forcing: evaluating 42.87
