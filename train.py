@@ -31,6 +31,7 @@ def print_prediction(feeder, similarity, pids, qids, labels, number=None):
 
 
 def run_epoch(opt, model, feeder, optimizer, batches):
+    model.train()
     nbatch = 0
     vocab_size = feeder.dataset.vocab_size
     criterion = models.make_loss_compute(vocab_size)
@@ -57,6 +58,8 @@ def run_epoch(opt, model, feeder, optimizer, batches):
 
 
 def run_gan_epoch(opt, generator, discriminator, feeder, optimizer, batches, step):
+    generator.train()
+    discriminator.train()
     nbatch = 0
     vocab_size = feeder.dataset.vocab_size
     g_criterion =  models.make_loss_compute(feeder.dataset.vocab_size)

@@ -61,6 +61,7 @@ def evaluate_policy_docs():
         
 
 def evaluate_accuracy(model, dataset, batch_size=20, beam_size=5, min_length=5, max_length=20, best_k_questions=3, size=None, output_file=config.evaluate_output_file):
+    model.eval()
     feeder = data.TrainFeeder(dataset)
     feeder.prepare('dev', batch_size)
     translator = Translator(model, beam_size, min_length, max_length)
