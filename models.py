@@ -101,7 +101,7 @@ class RNNEncoder(EncoderBase):
         emb = self.embeddings(src)
         if lengths is None:
             lengths = (src != data.NULL_ID).sum(-1)
-        packed_emb = pack(emb, lengths)
+        packed_emb = pack(emb, lengths.cpu())
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
         memory_bank = unpack(memory_bank)[0]
         return encoder_final, memory_bank
@@ -404,7 +404,7 @@ def load_or_create_models(opt, train):
     ckpt_path = os.path.join(config.checkpoint_folder, 'model.pt')
     if os.path.isfile(ckpt_path):
         ckpt = torch.load(ckpt_path, map_location=lambda storage, location: storage)
-        model_options = ckpt['model_options']
+        model_options = ckpt.get('model_options', {})
         for k, v in model_options.items():
             setattr(opt, k, v)
     else:

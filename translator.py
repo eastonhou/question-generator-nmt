@@ -31,7 +31,7 @@ class Beam(object):
                 scores[k][data.EOS_ID] = 0
         flat_scores = (scores + self.scores.unsqueeze(1).expand_as(scores)).view(-1)
         self.scores, ids = flat_scores.topk(self.beam_size)
-        self.sid = ids / vocab_size
+        self.sid = ids // vocab_size
         self.cid = ids - self.sid * vocab_size
         self.seq = [self.seq[i].copy() for i in self.sid.tolist()]
         for seq, id in zip(self.seq, self.cid.tolist()):

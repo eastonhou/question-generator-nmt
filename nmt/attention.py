@@ -64,7 +64,7 @@ class GlobalAttention(nn.Module):
         align = self.score(input, memory_bank)
 
         mask = utils.sequence_mask(memory_lengths).unsqueeze(1)
-        align.data.masked_fill_(1-mask, -float('inf'))
+        align.data.masked_fill_(~mask, -float('inf'))
 
         align_vectors = self.sm(align.view(batch*tgt_len, src_len)).view(batch, tgt_len, src_len)
         c = torch.bmm(align_vectors, memory_bank)
